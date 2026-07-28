@@ -48,7 +48,7 @@
 
   /* HEADER */
   header{
-    display:flex;justify-space-between;align-items:flex-end;
+    display:flex;justify-content:space-between;align-items:flex-end;
     padding-bottom:18px;border-bottom:1px solid var(--border);
     margin-bottom:20px;
   }
@@ -70,7 +70,7 @@
 
   /* AUTH BAR */
   .auth-card{
-    display:flex;align-items:center;justify-space-between;
+    display:flex;align-items:center;justify-content:space-between;
     background:var(--surface-2);border:1px solid var(--border);
     border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;
   }
@@ -117,7 +117,7 @@
     padding:16px 16px 18px;
     margin-bottom:14px;
   }
-  .card-head{display:flex;justify-space-between;align-items:center;margin-bottom:10px;}
+  .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .card-title{
     font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1px;
     font-size:14px;color:var(--accent);font-weight:600;
@@ -134,7 +134,7 @@
   .hint{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5;}
 
   /* WARMUP LIST */
-  .wu-item{display:flex;justify-space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+  .wu-item{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
   .wu-item:last-child{border-bottom:none;}
   .wu-name{font-size:13.5px;}
   .wu-sub{color:var(--muted);font-size:11.5px;}
@@ -153,7 +153,7 @@
 
   /* EXERCISE BLOCK */
   .exercise{border:1px solid var(--border);border-radius:9px;margin-bottom:10px;overflow:hidden;background:var(--surface-2);}
-  .ex-head{display:flex;justify-space-between;align-items:center;padding:12px 14px;cursor:pointer;}
+  .ex-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;}
   .ex-name{font-size:14px;font-weight:600;}
   .ex-group-tag{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
   .ex-toggle{color:var(--muted);font-size:18px;transition:transform .2s ease;}
@@ -229,10 +229,128 @@
     background:var(--surface-2);color:var(--text);border:1px solid var(--border);
     box-shadow:none;margin-top:0;
   }
+
+  /* PROFILE INPUTS */
+  .stat-box input.stat-edit{
+    width:70px;background:none;border:none;border-bottom:2px solid var(--border);
+    color:var(--accent);font-family:'Oswald',sans-serif;font-size:26px;font-weight:600;
+    text-align:center;padding:0 0 2px;
+  }
+  .stat-box input.stat-edit:focus{outline:none;border-color:var(--accent);}
+
+  /* STREAK */
+  .streak-box{
+    display:flex;align-items:center;gap:14px;background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px;
+  }
+  .streak-flame{font-size:34px;line-height:1;}
+  .streak-num{font-family:'Oswald',sans-serif;font-size:30px;font-weight:600;color:var(--accent);}
+  .streak-label{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;}
+  .streak-best{margin-left:auto;text-align:right;}
+  .streak-best .streak-num{font-size:20px;color:var(--text);}
+
+  /* HEATMAP */
+  .heatmap-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .heatmap-nav{color:var(--muted);cursor:pointer;font-size:16px;padding:2px 8px;}
+  .heatmap-nav:hover{color:var(--accent);}
+  .heatmap-month{font-size:12.5px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.5px;}
+  .heatmap-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .heatmap-dow{font-size:9.5px;color:var(--muted);text-align:center;text-transform:uppercase;}
+  .heatmap-cell{
+    aspect-ratio:1;border-radius:5px;background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);
+    border:1px solid var(--border);position:relative;
+  }
+  .heatmap-cell.empty{visibility:hidden;}
+  .heatmap-cell.today{border-color:var(--accent);}
+  .heatmap-legend{display:flex;align-items:center;gap:5px;margin-top:10px;justify-content:flex-end;}
+  .heatmap-legend .sw{width:11px;height:11px;border-radius:3px;}
+  .heatmap-legend span{font-size:10px;color:var(--muted);}
+
+  /* WEIGHT GRAPH */
+  .weight-log-row{display:flex;gap:8px;margin-bottom:12px;}
+  .weight-log-row input.num{flex:1;}
+  .graph-empty{color:var(--muted);font-size:12.5px;text-align:center;padding:30px 0;}
+  .wchart-wrap{position:relative;}
+  .wchart-wrap svg{width:100%;height:auto;display:block;}
+  .wchart-pt{fill:var(--accent);}
+  .wchart-line{fill:none;stroke:var(--accent);stroke-width:2.5;}
+  .wchart-fill{fill:url(#wgrad);opacity:.25;}
+  .wchart-axis-label{font-size:9px;fill:var(--muted);font-family:'Inter',sans-serif;}
+
+  /* PR LIST */
+  .pr-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
+  .pr-row:last-child{border-bottom:none;}
+  .pr-name{font-size:13px;font-weight:600;}
+  .pr-tag{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.4px;}
+  .pr-val{font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--accent);text-align:right;}
+  .pr-date{font-size:10.5px;color:var(--muted);text-align:right;}
+
+  /* HISTORY */
+  .hist-item{border:1px solid var(--border);border-radius:9px;margin-bottom:10px;overflow:hidden;background:var(--surface-2);}
+  .hist-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;}
+  .hist-date{font-size:13.5px;font-weight:600;}
+  .hist-groups{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+  .hist-vol{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);flex-shrink:0;}
+  .hist-body{display:none;padding:0 14px 14px;}
+  .hist-item.open .hist-body{display:block;}
+  .hist-item.open .ex-toggle{transform:rotate(45deg);color:var(--accent);}
+  .hist-ex-row{padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px;}
+  .hist-ex-row:last-child{border-bottom:none;}
+  .hist-ex-row b{color:var(--text);}
+  .hist-ex-sets{color:var(--muted);font-size:11.5px;margin-top:2px;font-family:'JetBrains Mono',monospace;}
+
+  /* ONBOARDING MODAL */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(10,10,12,.78);display:flex;align-items:center;justify-content:center;
+    z-index:2000;padding:20px;
+  }
+  .modal-overlay.hidden{display:none;}
+  .modal-box{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    padding:24px 22px;max-width:360px;width:100%;
+  }
+  .modal-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1px;
+    font-size:17px;color:var(--accent);font-weight:700;margin-bottom:6px;}
+  .modal-sub{color:var(--muted);font-size:12.5px;margin-bottom:18px;line-height:1.5;}
+  .modal-field{margin-bottom:14px;}
+  .modal-field label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+  .modal-field input{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+    color:var(--text);padding:11px 12px;font-family:'JetBrains Mono',monospace;font-size:14px;
+  }
+  .modal-field input:focus{outline:none;border-color:var(--accent);}
+  .modal-skip{text-align:center;margin-top:4px;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;}
 </style>
 </head>
 <body>
-<div class="wrap">
+
+<div class="modal-overlay" id="loginGate">
+  <div class="modal-box">
+    <div class="brand" style="margin-bottom:10px;">IRON <span>LOG</span></div>
+    <div class="modal-sub">Sign in with Google to start tracking your training. Your logs sync securely to your account and stay with you across devices.</div>
+    <button class="auth-btn" style="width:100%;padding:14px;font-size:14px;border-radius:8px;" onclick="loginWithGoogle()">Sign in with Google</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="onboardModal">
+  <div class="modal-box">
+    <div class="modal-title">Welcome to Iron Log</div>
+    <div class="modal-sub">Quick setup — this helps calculate your BMI and track your weight progression over time. You can change these anytime in the Profile tab.</div>
+    <div class="modal-field">
+      <label>Weight (kg)</label>
+      <input type="number" id="onboardWeight" inputmode="decimal" placeholder="e.g. 73">
+    </div>
+    <div class="modal-field">
+      <label>Height (cm)</label>
+      <input type="number" id="onboardHeight" inputmode="decimal" placeholder="e.g. 178">
+    </div>
+    <button class="finish-btn" id="onboardSaveBtn" style="margin:4px 0 0;">Save & Continue</button>
+    <div class="modal-skip" id="onboardSkipBtn">Skip for now</div>
+  </div>
+</div>
+
+<div class="wrap" id="mainWrap" style="display:none;">
 
   <header>
     <div class="brand">IRON <span>LOG</span></div>
@@ -245,6 +363,7 @@
   <div class="tabs">
     <div class="tab active" data-view="today">Today</div>
     <div class="tab" data-view="progress">Progress</div>
+    <div class="tab" data-view="history">History</div>
     <div class="tab" data-view="profile">Profile</div>
   </div>
 
@@ -298,6 +417,19 @@
 
   <!-- PROGRESS VIEW -->
   <div class="view" id="view-progress">
+
+    <div class="streak-box">
+      <div class="streak-flame">🔥</div>
+      <div>
+        <div class="streak-num" id="streakCurrent">0</div>
+        <div class="streak-label">Day Streak</div>
+      </div>
+      <div class="streak-best">
+        <div class="streak-num" id="streakBest">0</div>
+        <div class="streak-label">Best Streak</div>
+      </div>
+    </div>
+
     <div class="range-toggle">
       <div class="chip on" data-range="7">Last 7 days</div>
       <div class="chip" data-range="30">Last 30 days</div>
@@ -318,6 +450,46 @@
       <div class="card-head"><div class="card-title">Group Frequency</div></div>
       <div id="groupFreq"></div>
     </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">📈 Weight Progression</div></div>
+      <div id="weightChart"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">🔥 Monthly Heatmap</div>
+      </div>
+      <div class="heatmap-head">
+        <div class="heatmap-nav" id="heatmapPrev">‹</div>
+        <div class="heatmap-month" id="heatmapMonthLabel">—</div>
+        <div class="heatmap-nav" id="heatmapNext">›</div>
+      </div>
+      <div class="heatmap-grid" id="heatmapGrid"></div>
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <div class="sw" style="background:var(--surface-2);border:1px solid var(--border);"></div>
+        <div class="sw" style="background:var(--accent-dim);"></div>
+        <div class="sw" style="background:var(--accent);"></div>
+        <span>More</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">🏆 Personal Records</div></div>
+      <div id="prList"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY VIEW -->
+  <div class="view" id="view-history">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Complete Workout History</div>
+        <div class="muted" id="historyCount"></div>
+      </div>
+      <div id="historyList"></div>
+    </div>
   </div>
 
   <!-- PROFILE VIEW -->
@@ -329,11 +501,20 @@
     <div class="card">
       <div class="card-head"><div class="card-title">Stats</div></div>
       <div class="stat-row">
-        <div class="stat-box"><div class="stat-num">73</div><div class="stat-label">Weight (kg)</div></div>
-        <div class="stat-box"><div class="stat-num">5'11"</div><div class="stat-label">Height</div></div>
+        <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (kg)</div></div>
+        <div class="stat-box"><input type="number" class="stat-edit" id="profHeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Height (cm)</div></div>
         <div class="stat-box"><div class="stat-num" id="profBMI">—</div><div class="stat-label">BMI</div></div>
       </div>
-      <div class="hint">Vegetarian diet · one multivitamin daily. Aim for roughly 1.4–1.7g protein per kg bodyweight (~100–125g/day) from dals, paneer, tofu, soy chunks, Greek yogurt, and whey if you supplement.</div>
+      <div class="hint">Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Bodyweight Log</div></div>
+      <div class="weight-log-row">
+        <input type="number" class="num" id="weightLogInput" inputmode="decimal" placeholder="Today's weight (kg)">
+        <button class="add-exercise-btn" id="logWeightBtn" style="width:auto;padding:0 16px;">+ Log</button>
+      </div>
+      <div class="hint">Logging your weight here feeds the progression graph on the Progress tab.</div>
     </div>
     <div class="card">
       <div class="card-head"><div class="card-title">Default Weekly Split</div></div>
@@ -352,7 +533,7 @@
     </div>
   </div>
 
-  <footer>Built for <b>your</b> split · synced live with Google Auth & Firebase Cloud</footer>
+  <footer>Track it. See it grow. · synced live with Google Auth & Firebase Cloud</footer>
 </div>
 
 <script>
@@ -366,6 +547,20 @@ const firebaseConfig = {
   appId: "1:600117795327:web:44eca7fb78269a2ccdafca",
   measurementId: "G-5CP0NY3JB0"
 };
+
+if (typeof firebase === 'undefined') {
+  const gate = document.getElementById('loginGate');
+  gate.querySelector('.modal-box').innerHTML = `
+    <div class="brand" style="margin-bottom:10px;">IRON <span>LOG</span></div>
+    <div class="modal-sub" style="color:#ff6b6b;">
+      Couldn't load Google Sign-In (the Firebase library failed to load).
+      This is usually an ad-blocker/privacy extension blocking gstatic.com,
+      or no internet connection. Disable any content blockers for this page,
+      or check your connection, then reload.
+    </div>
+  `;
+  throw new Error("Firebase SDK failed to load — aborting init.");
+}
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -384,10 +579,19 @@ function logoutGoogle() {
   });
 }
 
-firebase.auth().onAuthStateChanged((user) => {
+firebase.auth().onAuthStateChanged(async (user) => {
   renderAuthBar(user);
+  const gate = document.getElementById('loginGate');
+  const wrap = document.getElementById('mainWrap');
   if (user) {
-    loadFromCloud();
+    gate.classList.add('hidden');
+    wrap.style.display = '';
+    await loadFromCloud();
+    maybeShowOnboarding();
+  } else {
+    gate.classList.remove('hidden');
+    wrap.style.display = 'none';
+    document.getElementById('onboardModal').classList.add('hidden');
   }
 });
 
@@ -465,18 +669,31 @@ function saveLogsLocal(d){ try{ localStorage.setItem(LOGS_KEY, JSON.stringify(d)
 function loadDayPlanLocal(){ try{return JSON.parse(localStorage.getItem(DAYPLAN_KEY))||{};}catch(e){return {};} }
 function saveDayPlanLocal(d){ try{ localStorage.setItem(DAYPLAN_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
 
+const PROFILE_KEY = "ironlog_profile";
+const WEIGHTLOG_KEY = "ironlog_weightlog";
+function loadProfileLocal(){ try{return JSON.parse(localStorage.getItem(PROFILE_KEY))||{};}catch(e){return {};} }
+function saveProfileLocal(d){ try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
+function loadWeightLogLocal(){ try{return JSON.parse(localStorage.getItem(WEIGHTLOG_KEY))||{};}catch(e){return {};} }
+function saveWeightLogLocal(d){ try{ localStorage.setItem(WEIGHTLOG_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
+
 let logs = loadLogsLocal();
 let dayPlan = loadDayPlanLocal();
+let profile = loadProfileLocal();
+let weightLog = loadWeightLogLocal();
 
 async function syncToCloud() {
   saveLogsLocal(logs);
   saveDayPlanLocal(dayPlan);
+  saveProfileLocal(profile);
+  saveWeightLogLocal(weightLog);
   const user = firebase.auth().currentUser;
   if (!user) return;
   try {
     await db.collection("users").doc(user.uid).set({
       logs: logs,
       dayPlan: dayPlan,
+      profile: profile,
+      weightLog: weightLog,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (e) {
@@ -493,6 +710,8 @@ async function loadFromCloud() {
       const data = doc.data();
       if (data.logs) { logs = data.logs; saveLogsLocal(logs); }
       if (data.dayPlan) { dayPlan = data.dayPlan; saveDayPlanLocal(dayPlan); }
+      if (data.profile) { profile = data.profile; saveProfileLocal(profile); }
+      if (data.weightLog) { weightLog = data.weightLog; saveWeightLogLocal(weightLog); }
       renderAll();
       showToast("Cloud Synced");
     }
@@ -512,6 +731,35 @@ function ensureDateEntry(key){
   }
   return logs[key];
 }
+
+/* ---------- ONBOARDING ---------- */
+function maybeShowOnboarding(){
+  const modal = document.getElementById('onboardModal');
+  if(profile.weightKg && profile.heightCm){
+    modal.classList.add('hidden');
+    return;
+  }
+  document.getElementById('onboardWeight').value = profile.weightKg || '';
+  document.getElementById('onboardHeight').value = profile.heightCm || '';
+  modal.classList.remove('hidden');
+}
+document.getElementById('onboardSaveBtn').onclick = ()=>{
+  const w = parseFloat(document.getElementById('onboardWeight').value);
+  const h = parseFloat(document.getElementById('onboardHeight').value);
+  if(!isNaN(w)) profile.weightKg = w;
+  if(!isNaN(h)) profile.heightCm = h;
+  if(!isNaN(w)){
+    const key = dateKey(new Date());
+    weightLog[key] = w;
+  }
+  syncToCloud();
+  document.getElementById('onboardModal').classList.add('hidden');
+  renderProfile();
+  showToast("Profile saved");
+};
+document.getElementById('onboardSkipBtn').onclick = ()=>{
+  document.getElementById('onboardModal').classList.add('hidden');
+};
 
 /* ---------- HEADER ---------- */
 function renderHeader(){
@@ -832,6 +1080,11 @@ function renderProgress(){
     `;
     freqBox.appendChild(row);
   });
+
+  renderStreak();
+  renderWeightChart();
+  renderHeatmap();
+  renderPRs();
 }
 
 document.querySelectorAll('.range-toggle .chip').forEach(chip=>{
@@ -843,11 +1096,238 @@ document.querySelectorAll('.range-toggle .chip').forEach(chip=>{
   };
 });
 
+/* ---------- STREAK TRACKER ---------- */
+function renderStreak(){
+  // Walk backward from today counting consecutive logged days,
+  // then scan all logged dates to find the best-ever streak.
+  const allKeys = Object.keys(logs).filter(k=>hasAnyLog(k)).sort();
+  let current = 0;
+  let cursor = new Date(today);
+  // if today isn't logged yet, start counting from yesterday so an
+  // in-progress day doesn't break an otherwise-real streak
+  if(!hasAnyLog(dateKey(cursor))) cursor.setDate(cursor.getDate()-1);
+  while(hasAnyLog(dateKey(cursor))){
+    current++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  let best = 0, run = 0, prevDate = null;
+  allKeys.forEach(k=>{
+    const d = new Date(k+'T00:00:00');
+    if(prevDate){
+      const diffDays = Math.round((d-prevDate)/86400000);
+      run = diffDays===1 ? run+1 : 1;
+    } else {
+      run = 1;
+    }
+    if(run>best) best = run;
+    prevDate = d;
+  });
+  document.getElementById('streakCurrent').textContent = current;
+  document.getElementById('streakBest').textContent = Math.max(best, current);
+}
+
+/* ---------- MONTHLY HEATMAP ---------- */
+let heatmapMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+function renderHeatmap(){
+  const grid = document.getElementById('heatmapGrid');
+  grid.innerHTML = "";
+  const label = document.getElementById('heatmapMonthLabel');
+  label.textContent = heatmapMonth.toLocaleDateString('en-US',{month:'long', year:'numeric'});
+
+  ["S","M","T","W","T","F","S"].forEach(d=>{
+    const el = document.createElement('div');
+    el.className = 'heatmap-dow';
+    el.textContent = d;
+    grid.appendChild(el);
+  });
+
+  const year = heatmapMonth.getFullYear(), month = heatmapMonth.getMonth();
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  const volsByDay = {};
+  let maxVol = 1;
+  for(let d=1; d<=daysInMonth; d++){
+    const key = dateKey(new Date(year, month, d));
+    const v = computeVolumeForKey(key);
+    volsByDay[d] = v;
+    if(v>maxVol) maxVol = v;
+  }
+
+  for(let i=0;i<firstDow;i++){
+    const filler = document.createElement('div');
+    filler.className = 'heatmap-cell empty';
+    grid.appendChild(filler);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const cell = document.createElement('div');
+    const key = dateKey(new Date(year, month, d));
+    const v = volsByDay[d];
+    const logged = hasAnyLog(key);
+    cell.className = 'heatmap-cell' + (key===dateKey(today) ? ' today' : '');
+    if(logged){
+      const ratio = v>0 ? v/maxVol : 0.15;
+      cell.style.background = ratio>0.66 ? 'var(--accent)' : (ratio>0.25 ? 'var(--accent-dim)' : 'var(--good-dim)');
+      cell.style.borderColor = 'transparent';
+      cell.style.color = ratio>0.66 ? '#161616' : 'var(--text)';
+    }
+    cell.textContent = d;
+    grid.appendChild(cell);
+  }
+}
+document.getElementById('heatmapPrev').onclick = ()=>{
+  heatmapMonth = new Date(heatmapMonth.getFullYear(), heatmapMonth.getMonth()-1, 1);
+  renderHeatmap();
+};
+document.getElementById('heatmapNext').onclick = ()=>{
+  heatmapMonth = new Date(heatmapMonth.getFullYear(), heatmapMonth.getMonth()+1, 1);
+  renderHeatmap();
+};
+
+/* ---------- WEIGHT PROGRESSION GRAPH ---------- */
+function renderWeightChart(){
+  const container = document.getElementById('weightChart');
+  const entries = Object.keys(weightLog).sort().map(k=>({date:k, w:weightLog[k]}));
+  if(entries.length < 2){
+    container.innerHTML = '<div class="graph-empty">Log your weight on at least 2 different days (Profile tab) to see a progression graph.</div>';
+    return;
+  }
+  const recent = entries.slice(-30);
+  const W = 640, H = 220, padL = 40, padR = 14, padT = 16, padB = 26;
+  const vals = recent.map(e=>e.w);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if(min===max){ min -= 1; max += 1; }
+  const xStep = (W-padL-padR) / (recent.length-1);
+  const yFor = v => padT + (H-padT-padB) * (1 - (v-min)/(max-min));
+  const xFor = i => padL + i*xStep;
+
+  let linePts = recent.map((e,i)=>`${xFor(i)},${yFor(e.w)}`).join(' ');
+  let areaPts = `${padL},${H-padB} ${linePts} ${xFor(recent.length-1)},${H-padB}`;
+
+  const dots = recent.map((e,i)=>`<circle class="wchart-pt" cx="${xFor(i)}" cy="${yFor(e.w)}" r="3"></circle>`).join('');
+  const firstLabel = new Date(recent[0].date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const lastLabel = new Date(recent[recent.length-1].date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  container.innerHTML = `
+    <div class="wchart-wrap">
+      <svg viewBox="0 0 ${W} ${H}">
+        <defs>
+          <linearGradient id="wgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)"></stop>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"></stop>
+          </linearGradient>
+        </defs>
+        <text class="wchart-axis-label" x="${padL}" y="${padT-4}">${max.toFixed(1)}kg</text>
+        <text class="wchart-axis-label" x="${padL}" y="${H-padB+14}">${min.toFixed(1)}kg</text>
+        <text class="wchart-axis-label" x="${padL}" y="${H-6}">${firstLabel}</text>
+        <text class="wchart-axis-label" x="${W-padR-40}" y="${H-6}">${lastLabel}</text>
+        <polygon class="wchart-fill" points="${areaPts}"></polygon>
+        <polyline class="wchart-line" points="${linePts}"></polyline>
+        ${dots}
+      </svg>
+    </div>
+  `;
+}
+
+/* ---------- PERSONAL RECORDS ---------- */
+function renderPRs(){
+  const list = document.getElementById('prList');
+  const best = {}; // name -> {weight, reps, date, group}
+  Object.keys(logs).sort().forEach(key=>{
+    const entry = logs[key];
+    Object.values(entry.exercises||{}).forEach(ex=>{
+      (ex.sets||[]).forEach(s=>{
+        if(!s || !s.weight || !s.reps) return;
+        const existing = best[ex.name];
+        if(!existing || s.weight > existing.weight){
+          best[ex.name] = { weight:s.weight, reps:s.reps, date:key, group:ex.group };
+        }
+      });
+    });
+  });
+  const rows = Object.entries(best).sort((a,b)=>b[1].weight-a[1].weight);
+  if(rows.length===0){
+    list.innerHTML = '<div class="graph-empty">Log some working sets to start building your personal records.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  rows.forEach(([name, r])=>{
+    const row = document.createElement('div');
+    row.className = 'pr-row';
+    const dateLabel = new Date(r.date+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    row.innerHTML = `
+      <div>
+        <div class="pr-name">${name}</div>
+        <div class="pr-tag">${GROUP_LABEL[r.group]||''}</div>
+      </div>
+      <div>
+        <div class="pr-val">${r.weight}kg × ${r.reps}</div>
+        <div class="pr-date">${dateLabel}</div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* ---------- COMPLETE WORKOUT HISTORY ---------- */
+function renderHistory(){
+  const list = document.getElementById('historyList');
+  const keys = Object.keys(logs).filter(k=>hasAnyLog(k)).sort().reverse();
+  document.getElementById('historyCount').textContent = keys.length ? `${keys.length} session${keys.length===1?'':'s'}` : '';
+  if(keys.length===0){
+    list.innerHTML = '<div class="empty-note">No workouts logged yet — your history will build up here.</div>';
+    return;
+  }
+  list.innerHTML = "";
+  keys.forEach(key=>{
+    const entry = logs[key];
+    const vol = computeVolumeForKey(key);
+    const groups = (entry.groups && entry.groups.length) ? entry.groups : [];
+    const d = new Date(key+'T00:00:00');
+    const dateLabel = d.toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'});
+
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    const head = document.createElement('div');
+    head.className = 'hist-head';
+    head.innerHTML = `
+      <div>
+        <div class="hist-date">${dateLabel}</div>
+        <div class="hist-groups">${groups.length ? groups.map(g=>GROUP_LABEL[g]).join(' + ') : 'Rest / Unspecified'}</div>
+      </div>
+      <div class="hist-vol">${Math.round(vol)}kg <span class="ex-toggle">+</span></div>
+    `;
+    head.onclick = ()=>item.classList.toggle('open');
+    item.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'hist-body';
+    const exIds = Object.keys(entry.exercises||{});
+    if(exIds.length===0){
+      body.innerHTML = '<div class="muted" style="padding:8px 0;">No working sets logged this day.</div>';
+    } else {
+      exIds.forEach(id=>{
+        const ex = entry.exercises[id];
+        const setsStr = (ex.sets||[]).map(s=> s && s.weight && s.reps ? `${s.weight}×${s.reps}` : '—').join('  ·  ');
+        const row = document.createElement('div');
+        row.className = 'hist-ex-row';
+        row.innerHTML = `<b>${ex.name}</b><div class="hist-ex-sets">${setsStr}</div>`;
+        body.appendChild(row);
+      });
+    }
+    item.appendChild(body);
+    list.appendChild(item);
+  });
+}
+
 /* ---------- PROFILE VIEW ---------- */
 function renderProfile(){
-  const heightM = 1.803; // 5'11"
-  const bmi = (73 / (heightM*heightM)).toFixed(1);
-  document.getElementById('profBMI').textContent = bmi;
+  const wInput = document.getElementById('profWeightInput');
+  const hInput = document.getElementById('profHeightInput');
+  if(document.activeElement !== wInput) wInput.value = profile.weightKg || '';
+  if(document.activeElement !== hInput) hInput.value = profile.heightCm || '';
+  updateBMI();
 
   const overview = document.getElementById('splitOverview');
   overview.innerHTML = "";
@@ -860,6 +1340,41 @@ function renderProfile(){
     overview.appendChild(row);
   }
 }
+
+function updateBMI(){
+  const bmiEl = document.getElementById('profBMI');
+  const w = profile.weightKg, h = profile.heightCm;
+  if(!w || !h){ bmiEl.textContent = '—'; return; }
+  const heightM = h/100;
+  bmiEl.textContent = (w/(heightM*heightM)).toFixed(1);
+}
+
+document.getElementById('profWeightInput').oninput = (e)=>{
+  const v = parseFloat(e.target.value);
+  profile.weightKg = isNaN(v) ? null : v;
+  updateBMI();
+  syncToCloud();
+};
+document.getElementById('profHeightInput').oninput = (e)=>{
+  const v = parseFloat(e.target.value);
+  profile.heightCm = isNaN(v) ? null : v;
+  updateBMI();
+  syncToCloud();
+};
+
+document.getElementById('logWeightBtn').onclick = ()=>{
+  const input = document.getElementById('weightLogInput');
+  const v = parseFloat(input.value);
+  if(isNaN(v) || v<=0){ showToast("Enter a valid weight"); return; }
+  const key = dateKey(new Date());
+  weightLog[key] = v;
+  profile.weightKg = v;
+  document.getElementById('profWeightInput').value = v;
+  updateBMI();
+  input.value = '';
+  syncToCloud();
+  showToast("Weight logged");
+};
 
 document.getElementById('resetBtn').onclick = ()=>{
   if(confirm("This clears all logged workouts across devices. Continue?")){
@@ -1056,6 +1571,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     if(tab.dataset.view==='progress') renderProgress();
+    if(tab.dataset.view==='history') renderHistory();
     if(tab.dataset.view==='profile') renderProfile();
   };
 });
