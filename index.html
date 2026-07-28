@@ -140,7 +140,7 @@
   .wu-sub{color:var(--muted);font-size:11.5px;}
 
   .wu-input-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;}
-  input.wu-num{width:56px;padding:8px 4px;}
+  .wu-num{width:66px;padding:8px 4px;}
   .wu-unit{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:30px;}
 
   .check{
@@ -163,12 +163,19 @@
   .sets-grid{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;}
   .set-label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);}
   .set-label b{color:var(--text);}
-  input.num{
+  .num{
     width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;
     color:var(--text);padding:8px 8px;font-family:'JetBrains Mono',monospace;font-size:13px;
     text-align:center;
   }
-  input.num:focus{outline:none;border-color:var(--accent);}
+  .num:focus{outline:none;border-color:var(--accent);}
+  select.num{
+    padding:8px 26px 8px 8px;text-align-last:center;-webkit-appearance:none;-moz-appearance:none;appearance:none;
+    cursor:pointer;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%238B8F98'><path d='M5.5 7.5l4.5 4.5 4.5-4.5z'/></svg>");
+    background-repeat:no-repeat;background-position:right 7px center;background-size:14px;
+  }
+  select.num option{background:var(--surface-2);color:var(--text);text-align:left;}
   .col-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:center;}
 
   .exercise-picker{margin-top:6px;}
@@ -832,6 +839,10 @@ function renderFocusHint(){
   document.getElementById('focusHint').textContent = g.length ? g.map(x=>GROUP_LABEL[x]).join(" + ") : "Rest day";
 }
 
+/* ---------- SHARED NUMBER DROPDOWN (1-100) ---------- */
+const NUM_OPTIONS_HTML = '<option value="">—</option>' +
+  Array.from({length:100}, (_,i)=>i+1).map(n=>`<option value="${n}">${n}</option>`).join('');
+
 /* ---------- WARMUP ---------- */
 function renderWarmup(){
   const key = dateKey(selectedDate);
@@ -846,13 +857,11 @@ function renderWarmup(){
     row.innerHTML = `<div><div class="wu-name">${w.name}</div><div class="wu-sub">Target: ${w.target}</div></div>`;
     const inputWrap = document.createElement('div');
     inputWrap.className = 'wu-input-wrap';
-    const input = document.createElement('input');
+    const input = document.createElement('select');
     input.className = 'num wu-num';
-    input.type = 'number';
-    input.inputMode = 'decimal';
-    input.placeholder = w.unit;
-    input.value = val;
-    input.oninput = ()=>{
+    input.innerHTML = NUM_OPTIONS_HTML;
+    input.value = val!=='' ? String(val) : '';
+    input.onchange = ()=>{
       const v = parseFloat(input.value);
       entry.warmup[w.id] = { value: isNaN(v) ? null : v, done: !isNaN(v) && v>0 };
       syncToCloud();
@@ -957,20 +966,22 @@ function renderExerciseList(){
       const row1 = document.createElement('div');
       row1.className = 'set-label';
       row1.innerHTML = `Set ${i+1}<br><b>×${target}</b>`;
-      const wInput = document.createElement('input');
-      wInput.className = 'num'; wInput.type = 'number'; wInput.inputMode='decimal'; wInput.placeholder='kg';
-      wInput.value = ex.sets[i] ? ex.sets[i].weight ?? '' : '';
-      const rInput = document.createElement('input');
-      rInput.className = 'num'; rInput.type = 'number'; rInput.inputMode='numeric'; rInput.placeholder = target;
-      rInput.value = ex.sets[i] ? ex.sets[i].reps ?? '' : '';
+      const wInput = document.createElement('select');
+      wInput.className = 'num';
+      wInput.innerHTML = NUM_OPTIONS_HTML;
+      wInput.value = ex.sets[i] && ex.sets[i].weight!=null ? String(ex.sets[i].weight) : '';
+      const rInput = document.createElement('select');
+      rInput.className = 'num';
+      rInput.innerHTML = NUM_OPTIONS_HTML;
+      rInput.value = ex.sets[i] && ex.sets[i].reps!=null ? String(ex.sets[i].reps) : '';
 
       function persist(){
         const w = parseFloat(wInput.value); const r = parseInt(rInput.value);
         ex.sets[i] = { weight: isNaN(w)?null:w, reps: isNaN(r)?null:r };
         syncToCloud();
       }
-      wInput.oninput = persist;
-      rInput.oninput = persist;
+      wInput.onchange = persist;
+      rInput.onchange = persist;
 
       grid.appendChild(row1);
       grid.appendChild(wInput);
