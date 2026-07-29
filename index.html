@@ -332,10 +332,22 @@
 </head>
 <body>
 
-<div class="modal-overlay" id="loginGate">
+<div class="modal-overlay" id="authCheck">
+  <div class="modal-box" style="text-align:center;">
+    <div class="brand" style="margin-bottom:10px;justify-content:center;display:flex;">IRON <span>LOG</span></div>
+    <div class="modal-sub" style="margin-bottom:0;">Checking your session…</div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="loginGate">
   <div class="modal-box">
     <div class="brand" style="margin-bottom:10px;">IRON <span>LOG</span></div>
-    <div class="modal-sub">Sign in with Google to start tracking your training. Your logs sync securely to your account and stay with you across devices.</div>
+    <div class="modal-sub">
+      Iron Log is a personal training tracker — warm-ups, working sets, weight progression, streaks, and a full workout history, all in one place.
+    </div>
+    <div class="modal-sub">
+      <b style="color:var(--text);">Why sign in?</b> Your workout data is tied to your Google account so it's saved to the cloud and syncs across every device you use — sign in on your phone at the gym, check your progress later on a laptop. Nothing is shared publicly, and only you can see your logs.
+    </div>
     <button class="auth-btn" style="width:100%;padding:14px;font-size:14px;border-radius:8px;" onclick="loginWithGoogle()">Sign in with Google</button>
   </div>
 </div>
@@ -536,7 +548,19 @@
         <button class="add-exercise-btn" id="importBtn">⬆ Import backup</button>
       </div>
       <input type="file" id="importFile" accept="application/json" style="display:none">
-      <button class="add-exercise-btn" id="resetBtn" style="margin-top:10px;color:#ff6b6b;">Reset all logged data</button>
+
+      <div class="hint" style="margin-top:16px;">Remove old workout logs to keep things tidy, without touching your profile or bodyweight history.</div>
+      <div class="weight-log-row">
+        <select class="num" id="purgeAgeSelect" style="flex:1;">
+          <option value="30">Older than 30 days</option>
+          <option value="90" selected>Older than 90 days</option>
+          <option value="180">Older than 180 days</option>
+          <option value="365">Older than 1 year</option>
+        </select>
+        <button class="add-exercise-btn" id="purgeOldBtn" style="width:auto;padding:0 16px;">Delete Old Logs</button>
+      </div>
+
+      <button class="add-exercise-btn" id="resetBtn" style="margin-top:14px;color:#ff6b6b;">Reset all logged data</button>
     </div>
   </div>
 
@@ -556,7 +580,10 @@ const firebaseConfig = {
 };
 
 if (typeof firebase === 'undefined') {
+  const authCheck = document.getElementById('authCheck');
+  if (authCheck) authCheck.remove();
   const gate = document.getElementById('loginGate');
+  gate.classList.remove('hidden');
   gate.querySelector('.modal-box').innerHTML = `
     <div class="brand" style="margin-bottom:10px;">IRON <span>LOG</span></div>
     <div class="modal-sub" style="color:#ff6b6b;">
@@ -573,6 +600,12 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
+// Explicitly persist the session in the browser (IndexedDB/localStorage) so
+// a signed-in user stays signed in across page refreshes and browser restarts.
+firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err=>{
+  console.error("Could not set auth persistence:", err);
+});
+
 function loginWithGoogle() {
   firebase.auth().signInWithPopup(googleProvider).catch(error => {
     console.error("Google Auth Error:", error);
@@ -586,10 +619,23 @@ function logoutGoogle() {
   });
 }
 
+// Safety net: if onAuthStateChanged hasn't resolved within a few seconds
+// (e.g. network hiccup), stop blocking on the checking screen and show the
+// sign-in gate instead of leaving the user stuck.
+setTimeout(()=>{
+  const authCheck = document.getElementById('authCheck');
+  if (authCheck) {
+    authCheck.remove();
+    document.getElementById('loginGate').classList.remove('hidden');
+  }
+}, 8000);
+
 firebase.auth().onAuthStateChanged(async (user) => {
   renderAuthBar(user);
   const gate = document.getElementById('loginGate');
   const wrap = document.getElementById('mainWrap');
+  const checking = document.getElementById('authCheck');
+  if (checking) checking.remove();
   if (user) {
     gate.classList.add('hidden');
     wrap.style.display = '';
@@ -1392,6 +1438,26 @@ document.getElementById('resetBtn').onclick = ()=>{
     logs = {}; dayPlan = {};
     syncToCloud();
     renderAll();
+    renderHistory();
+  }
+};
+
+document.getElementById('purgeOldBtn').onclick = ()=>{
+  const days = parseInt(document.getElementById('purgeAgeSelect').value);
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffKey = dateKey(cutoff);
+  const keysToRemove = Object.keys(logs).filter(k => k < cutoffKey && hasAnyLog(k));
+  if(keysToRemove.length === 0){
+    showToast("No logs older than that");
+    return;
+  }
+  if(confirm(`Delete ${keysToRemove.length} workout day(s) older than ${days} days? This can't be undone.`)){
+    keysToRemove.forEach(k => delete logs[k]);
+    syncToCloud();
+    renderAll();
+    renderHistory();
+    showToast(`Deleted ${keysToRemove.length} old log(s)`);
   }
 };
 
