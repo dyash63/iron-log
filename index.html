@@ -458,10 +458,12 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Forearm Finisher</div>
-        <div class="muted">every day</div>
+        <div class="card-title">Finisher</div>
+        <div class="muted" id="finisherHint">Forearms</div>
       </div>
-      <div id="forearmList"></div>
+      <div class="group-select" id="finisherSelect"></div>
+      <div id="finisherList"></div>
+      <div class="hint">Forearms stay as your default. Change the finisher focus anytime for the selected day.</div>
     </div>
 
     <button class="finish-btn" id="finishBtn">✓ Save Today's Workout</button>
@@ -748,11 +750,65 @@ const WARMUP = [
   {id:"squat", name:"Bodyweight Squats", target:"15 reps", unit:"reps"},
   {id:"pullup", name:"Pull-Ups", target:"15 reps or 2x30s hang", unit:"reps"}
 ];
-const FOREARM = [
-  {id:"wristcurl", name:"Wrist Curls", sub:"3 x 15"},
-  {id:"reversecurl", name:"Reverse Barbell Curl", sub:"3 x 12"},
-  {id:"farmerscarry", name:"Farmer's Carry", sub:"2 x 30m"}
-];
+const FINISHER_ORDER = ["forearms","abs","cardio","calves","glutes","triceps","biceps","chest","back","shoulders","legs"];
+const DEFAULT_FINISHER = "forearms";
+const FINISHERS = {
+  forearms: [
+    {id:"wristcurl", name:"Wrist Curls", sub:"3 x 15"},
+    {id:"reversecurl", name:"Reverse Barbell Curl", sub:"3 x 12"},
+    {id:"farmerscarry", name:"Farmer's Carry", sub:"2 x 30m"}
+  ],
+  abs: [
+    {id:"cablecrunch", name:"Cable Crunch", sub:"3 x 15"},
+    {id:"hangingknee", name:"Hanging Knee Raise", sub:"3 x 12"},
+    {id:"plank", name:"Plank", sub:"2 x 45s"}
+  ],
+  cardio: [
+    {id:"rower", name:"Rowing Machine", sub:"6 min intervals"},
+    {id:"battleropes", name:"Battle Ropes", sub:"6 x 20s"},
+    {id:"sledpush", name:"Sled Push", sub:"4 x 20m"}
+  ],
+  calves: [
+    {id:"standingcalf", name:"Standing Calf Raise", sub:"4 x 15"},
+    {id:"seatedcalf", name:"Seated Calf Raise", sub:"3 x 15"},
+    {id:"tibialis", name:"Tibialis Raise", sub:"3 x 20"}
+  ],
+  glutes: [
+    {id:"hipthrust", name:"Hip Thrust", sub:"3 x 12"},
+    {id:"kickback", name:"Cable Glute Kickback", sub:"3 x 15"},
+    {id:"bandwalk", name:"Banded Lateral Walk", sub:"2 x 20 steps"}
+  ],
+  triceps: [
+    {id:"ropepushdown", name:"Rope Triceps Pushdown", sub:"3 x 15"},
+    {id:"overheadext", name:"Overhead Cable Extension", sub:"3 x 12"},
+    {id:"benchdips", name:"Bench Dips", sub:"2 x 15"}
+  ],
+  biceps: [
+    {id:"cablecurl", name:"Cable Curl", sub:"3 x 15"},
+    {id:"hammercurl", name:"Hammer Curl", sub:"3 x 12"},
+    {id:"reversecurl", name:"Reverse Curl", sub:"2 x 15"}
+  ],
+  chest: [
+    {id:"pushups", name:"Push-Ups", sub:"2 x max clean reps"},
+    {id:"cablefly", name:"Cable Fly", sub:"3 x 15"},
+    {id:"chestdip", name:"Chest Dip", sub:"2 x 12"}
+  ],
+  back: [
+    {id:"straightarm", name:"Straight-Arm Pulldown", sub:"3 x 15"},
+    {id:"facepull", name:"Face Pull", sub:"3 x 15"},
+    {id:"invertedrow", name:"Inverted Rows", sub:"2 x max clean reps"}
+  ],
+  shoulders: [
+    {id:"lateralraise", name:"Dumbbell Lateral Raise", sub:"3 x 15"},
+    {id:"reardelt", name:"Rear Delt Fly", sub:"3 x 15"},
+    {id:"shrugs", name:"Dumbbell Shrugs", sub:"3 x 12"}
+  ],
+  legs: [
+    {id:"lunges", name:"Walking Lunges", sub:"2 x 20 steps"},
+    {id:"legextension", name:"Leg Extension", sub:"3 x 15"},
+    {id:"legcurl", name:"Lying Leg Curl", sub:"3 x 15"}
+  ]
+};
 const REP_SCHEME = [15,12,10,8];
 
 /* ---------- STORAGE & CLOUD SYNC ---------- */
@@ -822,7 +878,7 @@ let today = new Date();
 
 function ensureDateEntry(key){
   if(!logs[key]){
-    logs[key] = { groups:null, warmup:{}, exercises:{}, forearm:{} };
+    logs[key] = { groups:null, warmup:{}, exercises:{}, forearm:{}, finisherType:DEFAULT_FINISHER, finishers:{} };
   }
   return logs[key];
 }
@@ -964,23 +1020,59 @@ function renderWarmup(){
   });
 }
 
-/* ---------- FOREARM ---------- */
-function renderForearm(){
+/* ---------- FINISHER ---------- */
+function getFinisherType(entry){
+  return (entry && FINISHERS[entry.finisherType]) ? entry.finisherType : DEFAULT_FINISHER;
+}
+
+function getFinisherBucket(entry, type){
+  if(!entry.finishers) entry.finishers = {};
+  if(!entry.finishers[type]){
+    entry.finishers[type] = (type === DEFAULT_FINISHER && entry.forearm) ? Object.assign({}, entry.forearm) : {};
+  }
+  return entry.finishers[type];
+}
+
+function renderFinisherSelect(){
   const key = dateKey(selectedDate);
   const entry = ensureDateEntry(key);
-  const list = document.getElementById('forearmList');
+  const current = getFinisherType(entry);
+  const select = document.getElementById('finisherSelect');
+  select.innerHTML = "";
+  FINISHER_ORDER.forEach(type=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip' + (type === current ? ' on' : '');
+    chip.textContent = GROUP_LABEL[type] || type;
+    chip.onclick = ()=>{
+      entry.finisherType = type;
+      syncToCloud();
+      renderFinisherSelect();
+      renderFinisher();
+    };
+    select.appendChild(chip);
+  });
+  document.getElementById('finisherHint').textContent = GROUP_LABEL[current] || current;
+}
+
+function renderFinisher(){
+  const key = dateKey(selectedDate);
+  const entry = ensureDateEntry(key);
+  const type = getFinisherType(entry);
+  const bucket = getFinisherBucket(entry, type);
+  const list = document.getElementById('finisherList');
   list.innerHTML = "";
-  FOREARM.forEach(w=>{
+  (FINISHERS[type] || []).forEach(w=>{
     const row = document.createElement('div');
     row.className = 'wu-item';
-    const done = !!entry.forearm[w.id];
+    const done = !!bucket[w.id];
     row.innerHTML = `<div><div class="wu-name">${w.name}</div><div class="wu-sub">${w.sub}</div></div>`;
     const check = document.createElement('div');
     check.className = 'check' + (done ? ' done':'');
     check.onclick = ()=>{
-      entry.forearm[w.id] = !entry.forearm[w.id];
+      bucket[w.id] = !bucket[w.id];
+      if(type === DEFAULT_FINISHER) entry.forearm = Object.assign({}, bucket);
       syncToCloud();
-      renderForearm();
+      renderFinisher();
     };
     row.appendChild(check);
     list.appendChild(row);
@@ -1259,9 +1351,10 @@ function hasAnyLog(key){
   if(!entry) return false;
   if(entry.completedAt) return true;
   const wu = Object.values(entry.warmup||{}).some(w=>w && w.done);
-  const fa = Object.values(entry.forearm||{}).some(Boolean);
+  const legacyForearm = Object.values(entry.forearm||{}).some(Boolean);
+  const finisher = Object.values(entry.finishers||{}).some(bucket => Object.values(bucket||{}).some(Boolean));
   const ex = Object.keys(entry.exercises||{}).length>0;
-  return wu||fa||ex;
+  return wu||legacyForearm||finisher||ex;
 }
 
 function renderProgress(){
@@ -1846,7 +1939,8 @@ function renderAll(){
   renderGroupSelect();
   renderFocusHint();
   renderWarmup();
-  renderForearm();
+  renderFinisherSelect();
+  renderFinisher();
   renderExercisePicker();
   renderExerciseList();
 }
