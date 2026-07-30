@@ -334,6 +334,9 @@
   .hist-date{font-size:13.5px;font-weight:600;}
   .hist-groups{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
   .hist-vol{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted);flex-shrink:0;}
+  .hist-actions{display:flex;gap:8px;padding:0 14px 12px;}
+  .hist-action-btn{flex:1;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:11.5px;font-weight:600;padding:8px 0;border-radius:7px;cursor:pointer;}
+  .hist-action-btn:active{background:var(--accent);color:#161616;border-color:var(--accent);}
   .hist-body{display:none;padding:0 14px 14px;}
   .hist-item.open .hist-body{display:block;}
   .hist-item.open .ex-toggle{transform:rotate(45deg);color:var(--accent);}
@@ -533,6 +536,7 @@
         <div class="sw" style="background:var(--accent);"></div>
         <span>More</span>
       </div>
+      <button class="finish-btn outline" id="shareMonthBtn" style="margin-top:14px;">📤 Share Monthly Progress</button>
     </div>
 
     <div class="card">
@@ -1639,6 +1643,16 @@ function renderHistory(){
     head.onclick = ()=>item.classList.toggle('open');
     item.appendChild(head);
 
+    const actions = document.createElement('div');
+    actions.className = 'hist-actions';
+    actions.innerHTML = `
+      <button class="hist-action-btn" data-act="edit">✎ Edit</button>
+      <button class="hist-action-btn" data-act="share">📤 Share</button>
+    `;
+    actions.querySelector('[data-act="edit"]').onclick = (e)=>{ e.stopPropagation(); editHistoryDate(key); };
+    actions.querySelector('[data-act="share"]').onclick = (e)=>{ e.stopPropagation(); shareHistoryDate(key); };
+    item.appendChild(actions);
+
     const body = document.createElement('div');
     body.className = 'hist-body';
 
@@ -1876,7 +1890,10 @@ function measureWrapLines(ctx, text, maxWidth){
   return lines.length ? lines : [''];
 }
 
-function buildShareCard(){
+function buildShareCard(dateOverride){
+  const prevSelectedDate = selectedDate;
+  if(dateOverride) selectedDate = dateOverride;
+
   const key = dateKey(selectedDate);
   const entry = logs[key] || { exercises:{}, warmup:{}, finishers:{} };
   const groups = getGroupsForDate();
@@ -2051,24 +2068,280 @@ function buildShareCard(){
     }
   });
 
+  selectedDate = prevSelectedDate;
   return new Promise(resolve=>canvas.toBlob(resolve, 'image/png', 0.95));
+}
+
+/* Shares/downloads a PNG blob via the Web Share API, falling back to a direct download */
+async function shareBlobAsImage(blob, filename, shareTitle, shareText){
+  try{
+    const file = new File([blob], filename, {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({ files:[file], title:shareTitle, text:shareText });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Image saved — share it manually');
+    }
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    console.error('Share error:', e);
+    showToast("Couldn't create the share image");
+  }
 }
 
 document.getElementById('shareBtn').onclick = async ()=>{
   try{
     if(document.fonts && document.fonts.ready) await document.fonts.ready;
     const blob = await buildShareCard();
-    const file = new File([blob], `ironlog-${dateKey(selectedDate)}.png`, {type:'image/png'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({ files:[file], title:'My workout', text:'Logged with Iron Log' });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = file.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast('Image saved — share it manually');
+    await shareBlobAsImage(blob, `ironlog-${dateKey(selectedDate)}.png`, 'My workout', 'Logged with Iron Log');
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    console.error('Share error:', e);
+    showToast("Couldn't create the share image");
+  }
+};
+
+/* Share a specific day's workout from History */
+async function shareHistoryDate(key){
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const d = new Date(key+'T00:00:00');
+    const blob = await buildShareCard(d);
+    await shareBlobAsImage(blob, `ironlog-${key}.png`, 'My workout', 'Logged with Iron Log');
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    console.error('Share error:', e);
+    showToast("Couldn't create the share image");
+  }
+}
+
+/* Jump to a past day in the Today view for editing */
+function editHistoryDate(key){
+  selectedDate = new Date(key+'T00:00:00');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector('.tab[data-view="today"]').classList.add('active');
+  document.getElementById('view-today').classList.add('active');
+  renderAll();
+  showToast('Editing ' + selectedDate.toLocaleDateString('en-US',{month:'short', day:'numeric', year:'numeric'}));
+}
+
+/* ---------- MONTHLY PROGRESS SHARE ---------- */
+function buildMonthlyShareCard(monthDate){
+  const year = monthDate.getFullYear(), month = monthDate.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay();
+  const monthLabel = monthDate.toLocaleDateString('en-US',{month:'long', year:'numeric'});
+
+  let sessions = 0, totalVol = 0;
+  const groupCounts = {};
+  const volsByDay = {};
+  let maxVol = 1;
+
+  for(let d=1; d<=daysInMonth; d++){
+    const key = dateKey(new Date(year, month, d));
+    const entry = logs[key];
+    const v = computeVolumeForKey(key);
+    volsByDay[d] = v;
+    if(v>maxVol) maxVol = v;
+    if(hasAnyLog(key)){
+      sessions++;
+      totalVol += v;
+      const groups = (entry && entry.groups && entry.groups.length) ? entry.groups : [];
+      groups.forEach(g=>{ groupCounts[g] = (groupCounts[g]||0)+1; });
     }
+  }
+
+  const avgVol = sessions ? Math.round(totalVol/sessions) : 0;
+  const topGroups = Object.entries(groupCounts).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([g,c])=>({ name: GROUP_LABEL[g]||g, detail: `${c} session${c===1?'':'s'}` }));
+
+  const width = 1080, marginX = 80;
+  const contentW = width - marginX*2;
+  const mctx = document.createElement('canvas').getContext('2d');
+  const cmds = [];
+  let y = 160;
+
+  cmds.push({type:'title', y});
+  y = 210;
+  cmds.push({type:'subtitle', y, text:'MONTHLY PROGRESS'});
+  y = 250;
+  cmds.push({type:'divider', y});
+  y += 100;
+
+  mctx.font = "700 68px Oswald, sans-serif";
+  const monthLines = measureWrapLines(mctx, monthLabel.toUpperCase(), contentW);
+  cmds.push({type:'focus', y, lines: monthLines, lineHeight:74});
+  y += (monthLines.length-1)*74;
+  y += 90;
+
+  const statsY = y;
+  cmds.push({type:'monthStats', y: statsY, sessions, totalVol, avgVol});
+  y = statsY + 160 + 50;
+
+  function addSection(title, rows){
+    if(!rows.length) return;
+    cmds.push({type:'sectionTitle', y, text:title});
+    y += 44;
+    rows.forEach((r,idx)=>{
+      mctx.font = "700 32px Inter, sans-serif";
+      const nameLines = measureWrapLines(mctx, r.name, contentW);
+      mctx.font = "500 24px Inter, sans-serif";
+      const detailLines = measureWrapLines(mctx, r.detail, contentW);
+      cmds.push({type:'row', y, nameLines, detailLines});
+      y += nameLines.length*38 + detailLines.length*30 + 18;
+      if(idx < rows.length-1){
+        cmds.push({type:'rowDivider', y: y-9});
+      }
+    });
+    y += 30;
+  }
+
+  addSection('MOST TRAINED', topGroups);
+
+  cmds.push({type:'sectionTitle', y, text:'CONSISTENCY'});
+  y += 44;
+  const cellSize = 40, cellGap = 10;
+  const gridTop = y;
+  const totalCells = firstDow + daysInMonth;
+  const gridRows = Math.ceil(totalCells/7);
+  cmds.push({type:'heatmap', y: gridTop, year, month, firstDow, daysInMonth, volsByDay, maxVol, cellSize, cellGap});
+  y = gridTop + gridRows*(cellSize+cellGap) - cellGap + 40;
+
+  cmds.push({type:'footer', y});
+  const finalHeight = Math.max(1350, y + 60);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = finalHeight;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0,'#1b1d23');
+  grad.addColorStop(1,'#0f1013');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#FF5C39';
+  ctx.fillRect(0,0,canvas.width,14);
+  ctx.textAlign = 'left';
+
+  cmds.forEach(cmd=>{
+    switch(cmd.type){
+      case 'title': {
+        ctx.fillStyle = '#EDEDEF';
+        ctx.font = "700 54px Oswald, sans-serif";
+        ctx.fillText('IRON ', marginX, cmd.y);
+        const w = ctx.measureText('IRON ').width;
+        ctx.fillStyle = '#FF5C39';
+        ctx.fillText('LOG', marginX+w, cmd.y);
+        break;
+      }
+      case 'subtitle': {
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 30px Inter, sans-serif";
+        ctx.fillText(cmd.text, marginX, cmd.y);
+        break;
+      }
+      case 'divider': {
+        ctx.strokeStyle = '#2A2D35'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(marginX,cmd.y); ctx.lineTo(width-marginX,cmd.y); ctx.stroke();
+        break;
+      }
+      case 'focus': {
+        ctx.fillStyle = '#EDEDEF';
+        ctx.font = "700 68px Oswald, sans-serif";
+        cmd.lines.forEach((line,i)=> ctx.fillText(line, marginX, cmd.y + i*cmd.lineHeight));
+        break;
+      }
+      case 'monthStats': {
+        const stats = [
+          {label:'SESSIONS', value: String(cmd.sessions)},
+          {label:'TOTAL VOLUME (KG)', value: Math.round(cmd.totalVol).toLocaleString()},
+          {label:'AVG / SESSION', value: Math.round(cmd.avgVol).toLocaleString()}
+        ];
+        const boxW = 280, boxGap = 30, boxH = 160;
+        stats.forEach((s,i)=>{
+          const x = marginX + i*(boxW+boxGap);
+          ctx.fillStyle = '#1B1D22';
+          roundRect(ctx, x, cmd.y, boxW, boxH, 14); ctx.fill();
+          ctx.strokeStyle = '#2A2D35'; ctx.lineWidth = 2;
+          roundRect(ctx, x, cmd.y, boxW, boxH, 14); ctx.stroke();
+          ctx.fillStyle = '#FF5C39';
+          ctx.font = "700 44px Oswald, sans-serif";
+          ctx.textAlign = 'center';
+          ctx.fillText(s.value, x+boxW/2, cmd.y+80);
+          ctx.fillStyle = '#8B8F98';
+          ctx.font = "600 16px Inter, sans-serif";
+          ctx.fillText(s.label, x+boxW/2, cmd.y+118);
+          ctx.textAlign = 'left';
+        });
+        break;
+      }
+      case 'sectionTitle': {
+        ctx.fillStyle = '#FF5C39';
+        ctx.font = "700 22px Inter, sans-serif";
+        ctx.fillText(cmd.text, marginX, cmd.y);
+        break;
+      }
+      case 'row': {
+        let ry = cmd.y;
+        ctx.fillStyle = '#EDEDEF';
+        ctx.font = "700 32px Inter, sans-serif";
+        cmd.nameLines.forEach(line=>{ ctx.fillText(line, marginX, ry); ry += 38; });
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 24px Inter, sans-serif";
+        cmd.detailLines.forEach(line=>{ ctx.fillText(line, marginX, ry); ry += 30; });
+        break;
+      }
+      case 'rowDivider': {
+        ctx.strokeStyle = '#22242A'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(marginX, cmd.y); ctx.lineTo(width-marginX, cmd.y); ctx.stroke();
+        break;
+      }
+      case 'heatmap': {
+        const { firstDow, daysInMonth, volsByDay, maxVol, cellSize, cellGap, year:hy, month:hm } = cmd;
+        for(let d=1; d<=daysInMonth; d++){
+          const idx = firstDow + (d-1);
+          const col = idx % 7;
+          const row = Math.floor(idx / 7);
+          const x = marginX + col*(cellSize+cellGap);
+          const cy = cmd.y + row*(cellSize+cellGap);
+          const dKey = dateKey(new Date(hy, hm, d));
+          const v = volsByDay[d];
+          const logged = hasAnyLog(dKey);
+          ctx.fillStyle = '#1B1D22';
+          roundRect(ctx, x, cy, cellSize, cellSize, 8); ctx.fill();
+          if(logged){
+            const ratio = v>0 ? v/maxVol : 0.15;
+            ctx.fillStyle = ratio>0.66 ? '#FF5C39' : (ratio>0.25 ? 'rgba(255,92,57,0.55)' : 'rgba(80,200,120,0.5)');
+            roundRect(ctx, x, cy, cellSize, cellSize, 8); ctx.fill();
+          }
+          ctx.strokeStyle = '#2A2D35'; ctx.lineWidth = 1;
+          roundRect(ctx, x, cy, cellSize, cellSize, 8); ctx.stroke();
+        }
+        break;
+      }
+      case 'footer': {
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 22px Inter, sans-serif";
+        ctx.fillText('TRACKED WITH IRON LOG', marginX, cmd.y);
+        break;
+      }
+    }
+  });
+
+  return new Promise(resolve=>canvas.toBlob(resolve, 'image/png', 0.95));
+}
+
+document.getElementById('shareMonthBtn').onclick = async ()=>{
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const blob = await buildMonthlyShareCard(heatmapMonth);
+    const label = heatmapMonth.toLocaleDateString('en-US',{month:'short', year:'numeric'}).replace(' ','-');
+    await shareBlobAsImage(blob, `ironlog-monthly-${label}.png`, 'My monthly progress', 'Logged with Iron Log');
   }catch(e){
     if(e && e.name === 'AbortError') return;
     console.error('Share error:', e);
