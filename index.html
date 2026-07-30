@@ -142,6 +142,11 @@
   .wu-input-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;}
   .wu-num{width:66px;padding:8px 4px;}
   .wu-unit{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;width:30px;}
+  .finisher-item{align-items:flex-start;gap:10px;}
+  .finisher-copy{min-width:0;flex:1;}
+  .finisher-controls{display:grid;grid-template-columns:70px 92px;gap:7px;align-items:end;flex-shrink:0;}
+  .finisher-control span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:center;margin-bottom:4px;}
+  .finisher-control .num{padding-top:7px;padding-bottom:7px;}
 
   .check{
     width:22px;height:22px;border-radius:6px;border:1px solid var(--border);
@@ -210,9 +215,14 @@
   .ex-preview-meta{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;line-height:1.4;margin-bottom:5px;}
   .ex-preview-meta span + span::before{content:"/";margin:0 6px;color:var(--border);}
   .ex-preview-cue{font-size:12px;line-height:1.45;color:var(--text);}
+  .ex-preview-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .video-link{display:inline-flex;align-items:center;color:var(--accent);font-size:11.5px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.4px;}
+  .video-link:hover{text-decoration:underline;}
   @media (max-width:520px){
     .exercise-preview{grid-template-columns:82px 1fr;gap:10px;}
     .ex-figure{width:82px;}
+    .finisher-item{display:block;}
+    .finisher-controls{grid-template-columns:1fr 1fr;margin-top:9px;}
   }
   select.picker{
     width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border);
@@ -442,7 +452,7 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Warm-Up · 10 min</div>
+        <div class="card-title">Warm-Up</div>
       </div>
       <div id="warmupList"></div>
     </div>
@@ -751,7 +761,7 @@ const DEFAULT_SPLIT = { // 0 = Sunday
 };
 
 const WARMUP = [
-  {id:"cardio", name:"Cross-trainer / Treadmill Walk", target:"10 min", unit:"min"},
+  {id:"cardio", name:"Cross-trainer / Treadmill Walk", target:"as needed", unit:"min"},
   {id:"pushup", name:"Push-Ups", target:"15 reps", unit:"reps"},
   {id:"squat", name:"Bodyweight Squats", target:"15 reps", unit:"reps"},
   {id:"pullup", name:"Pull-Ups", target:"15 reps or 2x30s hang", unit:"reps"}
@@ -992,6 +1002,8 @@ function renderFocusHint(){
 /* ---------- SHARED NUMBER DROPDOWN (1-100) ---------- */
 const NUM_OPTIONS_HTML = '<option value="">—</option>' +
   Array.from({length:100}, (_,i)=>i+1).map(n=>`<option value="${n}">${n}</option>`).join('');
+const FINISHER_SET_OPTIONS_HTML = '<option value="">—</option>' +
+  Array.from({length:20}, (_,i)=>i+1).map(n=>`<option value="${n}">${n}</option>`).join('');
 
 /* ---------- WARMUP ---------- */
 function renderWarmup(){
@@ -1038,6 +1050,43 @@ function getFinisherBucket(entry, type){
   }
   return entry.finishers[type];
 }
+function parsePositiveInt(value){
+  const n = parseInt(value, 10);
+  return !isNaN(n) && n > 0 ? n : null;
+}
+function parsePositiveWeight(value){
+  const n = parseFloat(value);
+  return !isNaN(n) && n > 0 ? n : null;
+}
+function parseFinisherDefaultSets(sub){
+  const match = String(sub || '').match(/(\d+)\s*x/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+function normalizeFinisherLog(value, finisher){
+  if(value && typeof value === 'object' && !Array.isArray(value)){
+    const sets = parsePositiveInt(value.sets);
+    const weight = parsePositiveWeight(value.weight);
+    return { sets, weight, done: !!value.done || sets != null || weight != null };
+  }
+  if(value === true){
+    return { sets: finisher ? parseFinisherDefaultSets(finisher.sub) : null, weight:null, done:true };
+  }
+  return { sets:null, weight:null, done:false };
+}
+function isFinisherLogged(value){
+  return normalizeFinisherLog(value).done;
+}
+function formatFinisherWeight(weight){
+  return Number.isInteger(weight) ? String(weight) : String(weight);
+}
+function finisherDetail(finisher, value){
+  if(value === true) return finisher.sub;
+  const log = normalizeFinisherLog(value, finisher);
+  const parts = [];
+  if(log.sets != null) parts.push(`${log.sets} set${log.sets === 1 ? '' : 's'}`);
+  if(log.weight != null) parts.push(`${formatFinisherWeight(log.weight)} kg`);
+  return parts.length ? parts.join(' · ') : finisher.sub;
+}
 
 function renderFinisherSelect(){
   const key = dateKey(selectedDate);
@@ -1069,18 +1118,55 @@ function renderFinisher(){
   list.innerHTML = "";
   (FINISHERS[type] || []).forEach(w=>{
     const row = document.createElement('div');
-    row.className = 'wu-item';
-    const done = !!bucket[w.id];
-    row.innerHTML = `<div><div class="wu-name">${w.name}</div><div class="wu-sub">${w.sub}</div></div>`;
-    const check = document.createElement('div');
-    check.className = 'check' + (done ? ' done':'');
-    check.onclick = ()=>{
-      bucket[w.id] = !bucket[w.id];
+    row.className = 'wu-item finisher-item';
+    const log = normalizeFinisherLog(bucket[w.id], w);
+    row.innerHTML = `<div class="finisher-copy"><div class="wu-name">${escapeHTML(w.name)}</div><div class="wu-sub">${escapeHTML(w.sub)}</div>${youtubeExerciseLinkHTML(type, w.name)}</div>`;
+
+    const controls = document.createElement('div');
+    controls.className = 'finisher-controls';
+
+    const setsWrap = document.createElement('label');
+    setsWrap.className = 'finisher-control';
+    setsWrap.innerHTML = '<span>Sets</span>';
+    const setsInput = document.createElement('select');
+    setsInput.className = 'num';
+    setsInput.innerHTML = FINISHER_SET_OPTIONS_HTML;
+    setsInput.value = log.sets != null ? String(log.sets) : '';
+    setsWrap.appendChild(setsInput);
+
+    const weightWrap = document.createElement('label');
+    weightWrap.className = 'finisher-control';
+    weightWrap.innerHTML = '<span>Kg</span>';
+    const weightInput = document.createElement('input');
+    weightInput.type = 'number';
+    weightInput.className = 'num';
+    weightInput.inputMode = 'decimal';
+    weightInput.min = '0';
+    weightInput.step = '0.5';
+    weightInput.placeholder = 'kg';
+    weightInput.value = log.weight != null ? String(log.weight) : '';
+    weightWrap.appendChild(weightInput);
+
+    function persist(){
+      const sets = parsePositiveInt(setsInput.value);
+      const weight = parsePositiveWeight(weightInput.value);
+      if(sets == null && weight == null){
+        delete bucket[w.id];
+      } else {
+        const next = {};
+        if(sets != null) next.sets = sets;
+        if(weight != null) next.weight = weight;
+        bucket[w.id] = next;
+      }
       if(type === DEFAULT_FINISHER) entry.forearm = Object.assign({}, bucket);
       syncToCloud();
-      renderFinisher();
-    };
-    row.appendChild(check);
+    }
+    setsInput.onchange = persist;
+    weightInput.onchange = persist;
+
+    controls.appendChild(setsWrap);
+    controls.appendChild(weightWrap);
+    row.appendChild(controls);
     list.appendChild(row);
   });
 }
@@ -1092,6 +1178,15 @@ function escapeHTML(value){
   }[ch]));
 }
 function escapeAttr(value){ return escapeHTML(value).replace(/`/g, '&#96;'); }
+function youtubeExerciseUrl(group, name){
+  const query = [name, GROUP_LABEL[group], 'exercise form tutorial'].filter(Boolean).join(' ');
+  return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
+}
+function youtubeExerciseLinkHTML(group, name){
+  const url = escapeAttr(youtubeExerciseUrl(group, name));
+  const label = escapeAttr(`Watch ${name} exercise demo on YouTube`);
+  return `<a class="video-link" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${label}">YouTube demo</a>`;
+}
 function splitExerciseValue(value){
   const raw = String(value || '');
   const idx = raw.indexOf('::');
@@ -1183,6 +1278,7 @@ function buildExercisePreviewHTML(group, name, compact=false){
         <div class="ex-preview-title">${title}</div>
         <div class="ex-preview-meta"><span>${groupLabel}</span><span>${equipment}</span>${muscles ? `<span>${muscles}</span>` : ''}</div>
         <div class="ex-preview-cue">${cue}</div>
+        <div class="ex-preview-actions">${youtubeExerciseLinkHTML(group, name)}</div>
       </div>
     </div>
   `;
@@ -1357,8 +1453,8 @@ function hasAnyLog(key){
   if(!entry) return false;
   if(entry.completedAt) return true;
   const wu = Object.values(entry.warmup||{}).some(w=>w && w.done);
-  const legacyForearm = Object.values(entry.forearm||{}).some(Boolean);
-  const finisher = Object.values(entry.finishers||{}).some(bucket => Object.values(bucket||{}).some(Boolean));
+  const legacyForearm = Object.values(entry.forearm||{}).some(isFinisherLogged);
+  const finisher = Object.values(entry.finishers||{}).some(bucket => Object.values(bucket||{}).some(isFinisherLogged));
   const ex = Object.keys(entry.exercises||{}).length>0;
   return wu||legacyForearm||finisher||ex;
 }
@@ -1659,7 +1755,7 @@ function renderHistory(){
     const warmupDone = WARMUP.filter(w => entry.warmup && entry.warmup[w.id] && entry.warmup[w.id].done);
     const finisherTypeForHist = getFinisherType(entry);
     const finisherBucketForHist = (entry.finishers && entry.finishers[finisherTypeForHist]) || entry.forearm || {};
-    const finisherDone = (FINISHERS[finisherTypeForHist]||[]).filter(f=>finisherBucketForHist[f.id]);
+    const finisherDone = (FINISHERS[finisherTypeForHist]||[]).filter(f=>isFinisherLogged(finisherBucketForHist[f.id]));
     const exIds = Object.keys(entry.exercises||{});
 
     if(warmupDone.length===0 && finisherDone.length===0 && exIds.length===0){
@@ -1686,7 +1782,7 @@ function renderHistory(){
         finisherDone.forEach(f=>{
           const row = document.createElement('div');
           row.className = 'hist-ex-row';
-          row.innerHTML = `<b>${f.name}</b><div class="hist-ex-sets">${f.sub}</div>`;
+          row.innerHTML = `<b>${escapeHTML(f.name)}</b><div class="hist-ex-sets">${escapeHTML(finisherDetail(f, finisherBucketForHist[f.id]))}</div>`;
           body.appendChild(row);
         });
       }
@@ -1907,8 +2003,8 @@ function buildShareCard(dateOverride){
 
   const finisherType = getFinisherType(entry);
   const finisherBucket = (entry.finishers && entry.finishers[finisherType]) || entry.forearm || {};
-  const finisherDone = (FINISHERS[finisherType]||[]).filter(f=>finisherBucket[f.id])
-    .map(f => ({ name: f.name, detail: f.sub }));
+  const finisherDone = (FINISHERS[finisherType]||[]).filter(f=>isFinisherLogged(finisherBucket[f.id]))
+    .map(f => ({ name: f.name, detail: finisherDetail(f, finisherBucket[f.id]) }));
 
   const exerciseRows = Object.values(entry.exercises||{}).map(ex=>{
     const setsStr = (ex.sets||[]).filter(s=>s && s.weight && s.reps).map(s=>`${s.weight}kg × ${s.reps}`).join('   ·   ');
