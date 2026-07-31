@@ -378,6 +378,74 @@
   }
   .modal-field input:focus{outline:none;border-color:var(--accent);}
   .modal-skip{text-align:center;margin-top:4px;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;}
+
+  /* SMART NOTIFICATIONS */
+  .smart-tray{
+    position:fixed;left:50%;right:auto;bottom:76px;transform:translateX(-50%);
+    width:min(430px,calc(100vw - 28px));z-index:1600;display:flex;flex-direction:column;gap:10px;
+    pointer-events:none;
+  }
+  .smart-note{
+    background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent);
+    border-radius:10px;padding:13px 13px 12px;box-shadow:0 12px 32px rgba(0,0,0,.35);
+    pointer-events:auto;
+  }
+  .smart-note-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:5px;}
+  .smart-note-title{font-size:13px;font-weight:700;color:var(--text);}
+  .smart-note-close{border:none;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:0;}
+  .smart-note-body{font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:10px;}
+  .smart-actions{display:flex;gap:7px;flex-wrap:wrap;}
+  .mini-btn{
+    background:var(--surface-2);border:1px solid var(--border);border-radius:7px;color:var(--text);
+    cursor:pointer;font-size:11.5px;font-weight:700;letter-spacing:.2px;padding:8px 10px;
+  }
+  .mini-btn.primary{background:var(--accent);border-color:var(--accent);color:#161616;}
+  .mini-btn.good{background:var(--good);border-color:var(--good);color:#0f1a14;}
+  .mini-btn.danger{color:#ff8a8a;}
+  .smart-panel{display:grid;gap:14px;}
+  .smart-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .smart-row:last-child{border-bottom:none;}
+  .smart-main{min-width:0;}
+  .smart-label{font-size:13px;font-weight:700;}
+  .smart-sub{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.45;}
+  .smart-switch{
+    width:48px;height:28px;border-radius:999px;border:1px solid var(--border);background:var(--surface-2);
+    position:relative;cursor:pointer;flex-shrink:0;
+  }
+  .smart-switch::after{
+    content:"";position:absolute;top:4px;left:4px;width:18px;height:18px;border-radius:50%;
+    background:var(--muted);transition:all .18s ease;
+  }
+  .smart-switch.on{background:var(--accent);border-color:var(--accent);}
+  .smart-switch.on::after{left:24px;background:#161616;}
+  .notify-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .notify-stat{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
+  .notify-stat .v{font-family:'Oswald',sans-serif;font-size:21px;color:var(--accent);font-weight:600;}
+  .notify-stat .l{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;}
+  .water-bar{height:12px;background:var(--bg);border-radius:999px;overflow:hidden;border:1px solid var(--border);}
+  .water-fill{height:100%;background:linear-gradient(90deg,var(--good-dim),var(--good));border-radius:999px;transition:width .2s ease;}
+  .notify-control-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .notify-control-row .num{width:auto;min-width:116px;flex:1;}
+  .schedule-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  .schedule-row{
+    display:grid;grid-template-columns:54px 1fr;gap:7px;align-items:center;
+    background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px;
+  }
+  .schedule-day{
+    display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--text);
+    text-transform:uppercase;letter-spacing:.4px;
+  }
+  .schedule-day input{accent-color:var(--accent);}
+  .schedule-row input[type="time"]{
+    width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);
+    padding:7px 6px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  }
+  .schedule-row input[type="time"]:focus{outline:none;border-color:var(--accent);}
+  @media (max-width:520px){
+    .notify-stats{grid-template-columns:1fr 1fr 1fr;}
+    .schedule-grid{grid-template-columns:1fr;}
+    .smart-tray{bottom:70px;}
+  }
 </style>
 </head>
 <body>
@@ -487,6 +555,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="smart-tray" id="smartNotificationTray" aria-live="polite"></div>
 
   <!-- PROGRESS VIEW -->
   <div class="view" id="view-progress">
@@ -593,6 +662,69 @@
         <button class="add-exercise-btn" id="logWeightBtn" style="width:auto;padding:0 16px;">+ Log</button>
       </div>
       <div class="hint">Logging your weight here feeds the progression graph on the Progress tab.</div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Smart Notifications</div>
+        <div class="muted" id="notifyStatus">Off</div>
+      </div>
+      <div class="smart-panel">
+        <div class="smart-row">
+          <div class="smart-main">
+            <div class="smart-label">Reminder Engine</div>
+            <div class="smart-sub" id="notifyEngineCopy">Hydration and workout nudges adapt to your logs.</div>
+          </div>
+          <button class="auth-btn" id="notifyToggleBtn" type="button">Enable</button>
+        </div>
+
+        <div>
+          <div class="smart-row">
+            <div class="smart-main">
+              <div class="smart-label">Water Hydration</div>
+              <div class="smart-sub" id="hydrationCopy">Target updates from your profile.</div>
+            </div>
+            <button class="smart-switch" id="waterNotifyToggle" type="button" aria-label="Toggle water reminders"></button>
+          </div>
+          <div class="notify-stats" style="margin:10px 0;">
+            <div class="notify-stat"><div class="v" id="waterTargetVal">0</div><div class="l">Goal ml</div></div>
+            <div class="notify-stat"><div class="v" id="waterLoggedVal">0</div><div class="l">Logged ml</div></div>
+            <div class="notify-stat"><div class="v" id="waterRemainVal">0</div><div class="l">Left ml</div></div>
+          </div>
+          <div class="water-bar"><div class="water-fill" id="waterFill"></div></div>
+          <div class="notify-control-row" style="margin-top:10px;">
+            <select class="num" id="activityLevelSelect">
+              <option value="light">Light activity</option>
+              <option value="moderate">Moderate activity</option>
+              <option value="high">High activity</option>
+            </select>
+            <button class="mini-btn good" id="water250Btn" type="button">+250 ml</button>
+            <button class="mini-btn good" id="water500Btn" type="button">+500 ml</button>
+            <button class="mini-btn" id="waterSnoozeBtn" type="button">30 min</button>
+            <button class="mini-btn danger" id="waterSkipBtn" type="button">Skip</button>
+          </div>
+          <div class="hint" id="hydrationNextHint">Next hydration reminder will appear here.</div>
+        </div>
+
+        <div>
+          <div class="smart-row">
+            <div class="smart-main">
+              <div class="smart-label">Gym Attendance</div>
+              <div class="smart-sub" id="workoutCopy">Set preferred days and times.</div>
+            </div>
+            <button class="smart-switch" id="workoutNotifyToggle" type="button" aria-label="Toggle workout reminders"></button>
+          </div>
+          <div class="notify-control-row" style="margin:10px 0;">
+            <select class="num" id="workoutLeadSelect">
+              <option value="15">15 min before</option>
+              <option value="30">30 min before</option>
+              <option value="45">45 min before</option>
+              <option value="60">60 min before</option>
+            </select>
+          </div>
+          <div class="schedule-grid" id="workoutScheduleGrid"></div>
+          <div class="hint" id="workoutNextHint">Next workout reminder will appear here.</div>
+        </div>
+      </div>
     </div>
     <div class="card">
       <div class="card-head"><div class="card-title">Default Weekly Split</div></div>
@@ -831,6 +963,45 @@ const FINISHERS = {
 };
 const REP_SCHEME = [15,12,10,8];
 
+/* ---------- SMART NOTIFICATION DEFAULTS ---------- */
+const SMART_DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const ACTIVITY_LEVELS = {
+  light: { label:"Light activity", bonusMl:0 },
+  moderate: { label:"Moderate activity", bonusMl:350 },
+  high: { label:"High activity", bonusMl:700 }
+};
+const DEFAULT_WORKOUT_TIME = "18:30";
+
+function buildDefaultWorkoutSchedule(){
+  const schedule = {};
+  for(let i=0;i<7;i++){
+    const hasPlannedSplit = (DEFAULT_SPLIT[i] || []).length > 0;
+    schedule[i] = { enabled: hasPlannedSplit, time: DEFAULT_WORKOUT_TIME };
+  }
+  return schedule;
+}
+
+function normalizeNotificationPrefs(input){
+  const raw = input || {};
+  const schedule = buildDefaultWorkoutSchedule();
+  Object.keys(raw.workoutSchedule || {}).forEach(day=>{
+    const d = String(day);
+    if(!schedule[d]) schedule[d] = { enabled:false, time:DEFAULT_WORKOUT_TIME };
+    schedule[d] = {
+      enabled: !!raw.workoutSchedule[day].enabled,
+      time: raw.workoutSchedule[day].time || DEFAULT_WORKOUT_TIME
+    };
+  });
+  return {
+    enabled: !!raw.enabled,
+    waterEnabled: raw.waterEnabled !== false,
+    workoutEnabled: raw.workoutEnabled !== false,
+    activityLevel: ACTIVITY_LEVELS[raw.activityLevel] ? raw.activityLevel : "moderate",
+    workoutLeadMinutes: raw.workoutLeadMinutes || 30,
+    workoutSchedule: schedule
+  };
+}
+
 /* ---------- STORAGE & CLOUD SYNC ---------- */
 const LOGS_KEY = "ironlog_logs";
 const DAYPLAN_KEY = "ironlog_dayplan";
@@ -846,11 +1017,23 @@ function loadProfileLocal(){ try{return JSON.parse(localStorage.getItem(PROFILE_
 function saveProfileLocal(d){ try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
 function loadWeightLogLocal(){ try{return JSON.parse(localStorage.getItem(WEIGHTLOG_KEY))||{};}catch(e){return {};} }
 function saveWeightLogLocal(d){ try{ localStorage.setItem(WEIGHTLOG_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
+const NOTIFY_PREFS_KEY = "ironlog_notification_prefs";
+const HYDRATION_LOG_KEY = "ironlog_hydration_log";
+const NOTIFY_STATE_KEY = "ironlog_notification_state";
+function loadNotifyPrefsLocal(){ try{return normalizeNotificationPrefs(JSON.parse(localStorage.getItem(NOTIFY_PREFS_KEY))||{});}catch(e){return normalizeNotificationPrefs({});} }
+function saveNotifyPrefsLocal(d){ try{ localStorage.setItem(NOTIFY_PREFS_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
+function loadHydrationLogLocal(){ try{return JSON.parse(localStorage.getItem(HYDRATION_LOG_KEY))||{};}catch(e){return {};} }
+function saveHydrationLogLocal(d){ try{ localStorage.setItem(HYDRATION_LOG_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
+function loadNotifyStateLocal(){ try{return JSON.parse(localStorage.getItem(NOTIFY_STATE_KEY))||{};}catch(e){return {};} }
+function saveNotifyStateLocal(d){ try{ localStorage.setItem(NOTIFY_STATE_KEY, JSON.stringify(d)); }catch(e){ console.error('Local storage error:', e); } }
 
 let logs = loadLogsLocal();
 let dayPlan = loadDayPlanLocal();
 let profile = loadProfileLocal();
 let weightLog = loadWeightLogLocal();
+let notificationPrefs = loadNotifyPrefsLocal();
+let hydrationLog = loadHydrationLogLocal();
+let notificationState = loadNotifyStateLocal();
 
 /* ---------- WEIGHT UNITS (kg / lbs) ---------- */
 // All weights are always stored in kg internally (in profile, weightLog, and
@@ -910,6 +1093,9 @@ async function syncToCloud() {
   saveDayPlanLocal(dayPlan);
   saveProfileLocal(profile);
   saveWeightLogLocal(weightLog);
+  saveNotifyPrefsLocal(notificationPrefs);
+  saveHydrationLogLocal(hydrationLog);
+  saveNotifyStateLocal(notificationState);
   const user = firebase.auth().currentUser;
   if (!user) return;
   try {
@@ -918,6 +1104,9 @@ async function syncToCloud() {
       dayPlan: dayPlan,
       profile: profile,
       weightLog: weightLog,
+      notificationPrefs: notificationPrefs,
+      hydrationLog: hydrationLog,
+      notificationState: notificationState,
       updatedAt: new Date().toISOString()
     }, { merge: true });
   } catch (e) {
@@ -936,7 +1125,12 @@ async function loadFromCloud() {
       if (data.dayPlan) { dayPlan = data.dayPlan; saveDayPlanLocal(dayPlan); }
       if (data.profile) { profile = data.profile; saveProfileLocal(profile); }
       if (data.weightLog) { weightLog = data.weightLog; saveWeightLogLocal(weightLog); }
+      if (data.notificationPrefs) { notificationPrefs = normalizeNotificationPrefs(data.notificationPrefs); saveNotifyPrefsLocal(notificationPrefs); }
+      if (data.hydrationLog) { hydrationLog = data.hydrationLog; saveHydrationLogLocal(hydrationLog); }
+      if (data.notificationState) { notificationState = data.notificationState; saveNotifyStateLocal(notificationState); }
       renderAll();
+      renderNotifications();
+      startSmartNotifications();
       showToast("Cloud Synced");
     }
   } catch (e) {
@@ -1012,13 +1206,18 @@ function renderDayStrip(){
 }
 
 /* ---------- GROUP SELECT ---------- */
-function getGroupsForDate(){
-  const key = dateKey(selectedDate);
-  const entry = ensureDateEntry(key);
-  if(entry.groups && entry.groups.length) return entry.groups;
-  const weekday = selectedDate.getDay();
+function getGroupsForDateValue(d){
+  const key = dateKey(d);
+  const entry = logs[key];
+  if(entry && entry.groups && entry.groups.length) return entry.groups;
+  const weekday = d.getDay();
   const override = dayPlan[weekday];
   return override || DEFAULT_SPLIT[weekday] || [];
+}
+
+function getGroupsForDate(){
+  ensureDateEntry(dateKey(selectedDate));
+  return getGroupsForDateValue(selectedDate);
 }
 
 function renderGroupSelect(){
@@ -1866,6 +2065,520 @@ function renderHistory(){
     list.appendChild(item);
   });
 }
+
+/* ---------- SMART NOTIFICATIONS ---------- */
+let smartNotifyTimer = null;
+
+function clampNumber(value, min, max){ return Math.max(min, Math.min(max, value)); }
+function roundToNearest(value, step){ return Math.round(value / step) * step; }
+function getTodayKey(){ return dateKey(new Date()); }
+function timeLabel(d){ return d.toLocaleTimeString('en-US',{hour:'numeric', minute:'2-digit'}); }
+function minsUntilLabel(d){
+  const mins = Math.max(0, Math.round((d - new Date()) / 60000));
+  if(mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+function ensureHydrationEntry(key=getTodayKey()){
+  if(!hydrationLog[key]){
+    hydrationLog[key] = { amountMl:0, events:[], skipped:false, snoozedUntil:null, lastReminderAt:null };
+  }
+  const entry = hydrationLog[key];
+  if(typeof entry.amountMl !== 'number') entry.amountMl = 0;
+  if(!Array.isArray(entry.events)) entry.events = [];
+  return entry;
+}
+
+function ensureNotifyStateForKey(key=getTodayKey()){
+  if(!notificationState[key]) notificationState[key] = {};
+  if(!notificationState[key].workoutFired) notificationState[key].workoutFired = {};
+  return notificationState[key];
+}
+
+function latestWeightKg(){
+  if(profile.weightKg) return profile.weightKg;
+  const keys = Object.keys(weightLog).sort();
+  return keys.length ? weightLog[keys[keys.length-1]] : 70;
+}
+
+function hydrationTargetMl(){
+  const weight = latestWeightKg() || 70;
+  const height = profile.heightCm || 170;
+  const activity = ACTIVITY_LEVELS[notificationPrefs.activityLevel] || ACTIVITY_LEVELS.moderate;
+  const heightAdj = clampNumber((height - 170) * 6, -150, 300);
+  const target = (weight * 34) + heightAdj + activity.bonusMl;
+  return clampNumber(roundToNearest(target, 50), 1800, 5200);
+}
+
+function hydrationProgress(key=getTodayKey()){
+  const entry = ensureHydrationEntry(key);
+  const target = hydrationTargetMl();
+  const logged = Math.max(0, entry.amountMl || 0);
+  const remaining = Math.max(0, target - logged);
+  return { target, logged, remaining, ratio: target ? clampNumber(logged / target, 0, 1) : 0, entry };
+}
+
+function hydrationCadenceMinutes(now=new Date()){
+  const progress = hydrationProgress();
+  if(progress.remaining <= 0) return null;
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const minutesLeft = (22 * 60) - minutesNow;
+  if(minutesLeft <= 0) return null;
+  const mlPerHourNeeded = progress.remaining / Math.max(minutesLeft / 60, 1);
+  let cadence = 120;
+  if(mlPerHourNeeded > 450) cadence = 45;
+  else if(mlPerHourNeeded > 300) cadence = 60;
+  else if(mlPerHourNeeded > 180) cadence = 90;
+  if(progress.ratio < .35 && now.getHours() >= 14) cadence = Math.min(cadence, 60);
+  if(progress.ratio < .55 && now.getHours() >= 18) cadence = Math.min(cadence, 45);
+  if(progress.ratio > .85) cadence = 150;
+  return cadence;
+}
+
+function hydrationReminderPlan(now=new Date()){
+  if(!notificationPrefs.enabled || !notificationPrefs.waterEnabled) return { active:false, label:"Water reminders are off." };
+  const progress = hydrationProgress();
+  if(progress.remaining <= 0) return { active:false, label:"Hydration goal complete for today." };
+  if(progress.entry.skipped) return { active:false, label:"Water reminders skipped for today." };
+  if(now.getHours() < 8 || now.getHours() >= 22) return { active:false, label:"Hydration reminders start at 8:00 AM." };
+  const snoozedUntil = progress.entry.snoozedUntil ? new Date(progress.entry.snoozedUntil) : null;
+  if(snoozedUntil && snoozedUntil > now) return { active:true, due:false, nextAt:snoozedUntil, label:`Snoozed until ${timeLabel(snoozedUntil)}.` };
+  const cadence = hydrationCadenceMinutes(now);
+  if(!cadence) return { active:false, label:"Hydration reminders are paused for the night." };
+  const lastAt = progress.entry.lastReminderAt ? new Date(progress.entry.lastReminderAt) : null;
+  const nextAt = lastAt ? new Date(lastAt.getTime() + cadence * 60000) : now;
+  return {
+    active:true,
+    due: now >= nextAt,
+    nextAt,
+    cadence,
+    progress,
+    label: now >= nextAt ? "Hydration reminder ready now." : `Next water reminder in ${minsUntilLabel(nextAt)}.`
+  };
+}
+
+function logWater(amountMl){
+  const key = getTodayKey();
+  const entry = ensureHydrationEntry(key);
+  entry.amountMl = Math.max(0, (entry.amountMl || 0) + amountMl);
+  entry.events.push({ at:new Date().toISOString(), amountMl });
+  entry.skipped = false;
+  entry.snoozedUntil = null;
+  syncToCloud();
+  renderNotifications();
+  dismissSmartReminder("hydration");
+  showToast(`Logged ${amountMl} ml water`);
+}
+
+function snoozeHydration(minutes=30){
+  const entry = ensureHydrationEntry();
+  entry.snoozedUntil = new Date(Date.now() + minutes * 60000).toISOString();
+  entry.skipped = false;
+  syncToCloud();
+  renderNotifications();
+  dismissSmartReminder("hydration");
+  showToast(`Water reminder snoozed ${minutes} min`);
+}
+
+function skipHydrationToday(){
+  const entry = ensureHydrationEntry();
+  entry.skipped = true;
+  entry.snoozedUntil = null;
+  syncToCloud();
+  renderNotifications();
+  dismissSmartReminder("hydration");
+  showToast("Water reminders skipped today");
+}
+
+function scheduledWorkoutForDate(d){
+  const day = String(d.getDay());
+  const pref = notificationPrefs.workoutSchedule && notificationPrefs.workoutSchedule[day];
+  if(!pref || !pref.enabled) return null;
+  const parts = String(pref.time || DEFAULT_WORKOUT_TIME).split(':').map(n=>parseInt(n,10));
+  const hour = isNaN(parts[0]) ? 18 : parts[0];
+  const minute = isNaN(parts[1]) ? 30 : parts[1];
+  const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, minute, 0, 0);
+  const groups = getGroupsForDateValue(d);
+  return { at, day, groups, label:groups.length ? groups.map(g=>GROUP_LABEL[g]||g).join(" + ") : "Workout" };
+}
+
+function countLoggedDays(daysBack){
+  let count = 0;
+  for(let i=0;i<daysBack;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    if(hasAnyLog(dateKey(d))) count++;
+  }
+  return count;
+}
+
+function currentStreakCount(){
+  let current = 0;
+  const cursor = new Date();
+  if(!hasAnyLog(dateKey(cursor))) cursor.setDate(cursor.getDate()-1);
+  while(hasAnyLog(dateKey(cursor))){
+    current++;
+    cursor.setDate(cursor.getDate()-1);
+  }
+  return current;
+}
+
+function missedScheduledCount(daysBack=14){
+  let missed = 0;
+  for(let i=1;i<=daysBack;i++){
+    const d = new Date();
+    d.setDate(d.getDate()-i);
+    const plan = scheduledWorkoutForDate(d);
+    if(plan && !hasAnyLog(dateKey(d))) missed++;
+  }
+  return missed;
+}
+
+function hoursSinceLastWorkout(){
+  const keys = Object.keys(logs).filter(k=>hasAnyLog(k)).sort().reverse();
+  if(!keys.length) return null;
+  const last = new Date(keys[0] + 'T12:00:00');
+  return (Date.now() - last.getTime()) / 3600000;
+}
+
+function workoutStagesForPlan(plan){
+  const lead = parseInt(notificationPrefs.workoutLeadMinutes, 10) || 30;
+  return [
+    { id:"pre", at:new Date(plan.at.getTime() - lead * 60000) },
+    { id:"follow1", at:new Date(plan.at.getTime() + 60 * 60000) },
+    { id:"follow2", at:new Date(plan.at.getTime() + 180 * 60000) },
+    { id:"follow3", at:new Date(plan.at.getTime() + 360 * 60000) }
+  ];
+}
+
+function workoutReminderPlan(now=new Date()){
+  if(!notificationPrefs.enabled || !notificationPrefs.workoutEnabled) return { active:false, label:"Workout reminders are off." };
+  const key = dateKey(now);
+  if(hasAnyLog(key)) return { active:false, label:"Workout already logged today." };
+  if(notificationState.workoutSkippedKey === key) return { active:false, label:"Workout reminders skipped for today." };
+  const snoozedUntil = notificationState.workoutSnoozedUntil ? new Date(notificationState.workoutSnoozedUntil) : null;
+  if(snoozedUntil && snoozedUntil > now) return { active:true, due:false, nextAt:snoozedUntil, label:`Workout reminder snoozed until ${timeLabel(snoozedUntil)}.` };
+  const plan = scheduledWorkoutForDate(now);
+  if(!plan) return { active:false, label:"No workout scheduled today." };
+  const state = ensureNotifyStateForKey(key);
+  const stages = workoutStagesForPlan(plan);
+  for(let i=stages.length-1;i>=0;i--){
+    const stage = stages[i];
+    if(now >= stage.at && !state.workoutFired[stage.id]){
+      return { active:true, due:true, key, plan, stage, label:"Workout reminder ready now." };
+    }
+  }
+  const nextStage = stages.find(stage => !state.workoutFired[stage.id] && now < stage.at);
+  if(nextStage) return { active:true, due:false, key, plan, stage:nextStage, nextAt:nextStage.at, label:`Next workout reminder in ${minsUntilLabel(nextStage.at)}.` };
+  return { active:false, key, plan, label:"Workout reminders are done for today." };
+}
+
+function workoutReminderCopy(stage, plan){
+  const streak = currentStreakCount();
+  const missed = missedScheduledCount();
+  const sessions30 = countLoggedDays(30);
+  const recoveryHours = hoursSinceLastWorkout();
+  const focus = plan.label;
+  const recoveryLine = recoveryHours != null && recoveryHours < 30
+    ? "You trained recently, so scale the load if recovery feels low."
+    : "Aim for one clean first set and let momentum handle the rest.";
+  const progressLine = streak >= 3
+    ? `Your ${streak}-day streak is worth protecting.`
+    : (missed > 1 ? `${missed} planned sessions slipped recently, so make this one small and real.` : `${sessions30} sessions logged in the last 30 days.`);
+  if(stage.id === "pre"){
+    return { title:"Workout soon", body:`${focus} starts at ${timeLabel(plan.at)}. ${progressLine}` };
+  }
+  if(stage.id === "follow1"){
+    return { title:"No workout logged yet", body:`Still time for ${focus}. A shorter session still counts.` };
+  }
+  if(stage.id === "follow2"){
+    return { title:"Keep the routine alive", body:`${progressLine} ${recoveryLine}` };
+  }
+  return { title:"Last call for consistency", body:`Close the day with a lighter ${focus} session or log recovery honestly.` };
+}
+
+function dismissSmartReminder(id){
+  const el = document.getElementById(`smart-note-${id}`);
+  if(el) el.remove();
+}
+
+function showSmartReminder(id, title, body, actions){
+  const tray = document.getElementById('smartNotificationTray');
+  if(!tray) return;
+  dismissSmartReminder(id);
+  const card = document.createElement('div');
+  card.className = 'smart-note';
+  card.id = `smart-note-${id}`;
+  const head = document.createElement('div');
+  head.className = 'smart-note-head';
+  head.innerHTML = `<div class="smart-note-title">${escapeHTML(title)}</div>`;
+  const close = document.createElement('button');
+  close.className = 'smart-note-close';
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Dismiss reminder');
+  close.textContent = 'x';
+  close.onclick = ()=>dismissSmartReminder(id);
+  head.appendChild(close);
+  const copy = document.createElement('div');
+  copy.className = 'smart-note-body';
+  copy.textContent = body;
+  const row = document.createElement('div');
+  row.className = 'smart-actions';
+  actions.forEach(action=>{
+    const btn = document.createElement('button');
+    btn.className = `mini-btn ${action.kind || ''}`.trim();
+    btn.type = 'button';
+    btn.textContent = action.label;
+    btn.onclick = action.run;
+    row.appendChild(btn);
+  });
+  card.appendChild(head);
+  card.appendChild(copy);
+  card.appendChild(row);
+  tray.appendChild(card);
+}
+
+async function requestSmartNotificationPermission(){
+  if(!("Notification" in window)){
+    showToast("In-app reminders enabled");
+    return false;
+  }
+  if(Notification.permission === "granted") return true;
+  if(Notification.permission === "denied"){
+    showToast("Browser notifications are blocked");
+    return false;
+  }
+  try{
+    const result = await Notification.requestPermission();
+    return result === "granted";
+  }catch(e){
+    console.error("Notification permission error:", e);
+    showToast("In-app reminders enabled");
+    return false;
+  }
+}
+
+function sendSmartNotification(id, title, body, actions){
+  showSmartReminder(id, title, body, actions);
+  if("Notification" in window && Notification.permission === "granted" && (document.hidden || !document.hasFocus())){
+    try{
+      const note = new Notification(title, { body, tag:`ironlog-${id}`, renotify:true });
+      note.onclick = ()=>{
+        window.focus();
+        if(id === "workout") openTodayForWorkout();
+      };
+    }catch(e){
+      console.error("Notification send error:", e);
+    }
+  }
+}
+
+function fireHydrationReminder(){
+  const progress = hydrationProgress();
+  const entry = progress.entry;
+  entry.lastReminderAt = new Date().toISOString();
+  syncToCloud();
+  sendSmartNotification(
+    "hydration",
+    "Hydration check",
+    `${progress.remaining} ml left today. Logging a glass now updates the next reminder.`,
+    [
+      { label:"Drank 250 ml", kind:"good", run:()=>logWater(250) },
+      { label:"Remind 30 min", run:()=>snoozeHydration(30) },
+      { label:"Skip", kind:"danger", run:()=>skipHydrationToday() }
+    ]
+  );
+}
+
+function openTodayForWorkout(){
+  selectedDate = new Date();
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelector('.tab[data-view="today"]').classList.add('active');
+  document.getElementById('view-today').classList.add('active');
+  renderAll();
+  dismissSmartReminder("workout");
+}
+
+function snoozeWorkout(minutes=60){
+  notificationState.workoutSnoozedUntil = new Date(Date.now() + minutes * 60000).toISOString();
+  syncToCloud();
+  renderNotifications();
+  dismissSmartReminder("workout");
+  showToast(`Workout reminder snoozed ${minutes} min`);
+}
+
+function skipWorkoutToday(){
+  notificationState.workoutSkippedKey = getTodayKey();
+  notificationState.workoutSnoozedUntil = null;
+  syncToCloud();
+  renderNotifications();
+  dismissSmartReminder("workout");
+  showToast("Workout reminders skipped today");
+}
+
+function fireWorkoutReminder(plan){
+  const state = ensureNotifyStateForKey(plan.key);
+  state.workoutFired[plan.stage.id] = new Date().toISOString();
+  notificationState.workoutSnoozedUntil = null;
+  syncToCloud();
+  const copy = workoutReminderCopy(plan.stage, plan.plan);
+  sendSmartNotification(
+    "workout",
+    copy.title,
+    copy.body,
+    [
+      { label:"Open Today", kind:"primary", run:openTodayForWorkout },
+      { label:"Remind 1 hour", run:()=>snoozeWorkout(60) },
+      { label:"Skip", kind:"danger", run:skipWorkoutToday }
+    ]
+  );
+}
+
+function runSmartNotificationCheck(){
+  if(!notificationPrefs.enabled) return;
+  const hydrationPlan = hydrationReminderPlan();
+  if(hydrationPlan.due) fireHydrationReminder();
+  const workoutPlan = workoutReminderPlan();
+  if(workoutPlan.due) fireWorkoutReminder(workoutPlan);
+  renderNotifications();
+}
+
+function stopSmartNotifications(){
+  if(smartNotifyTimer){
+    clearInterval(smartNotifyTimer);
+    smartNotifyTimer = null;
+  }
+}
+
+function startSmartNotifications(){
+  stopSmartNotifications();
+  if(!notificationPrefs.enabled) return;
+  runSmartNotificationCheck();
+  smartNotifyTimer = setInterval(runSmartNotificationCheck, 60000);
+}
+
+function renderWorkoutScheduleGrid(){
+  const grid = document.getElementById('workoutScheduleGrid');
+  if(!grid) return;
+  grid.innerHTML = "";
+  for(let i=0;i<7;i++){
+    const pref = notificationPrefs.workoutSchedule[String(i)] || { enabled:false, time:DEFAULT_WORKOUT_TIME };
+    const row = document.createElement('div');
+    row.className = 'schedule-row';
+    const label = document.createElement('label');
+    label.className = 'schedule-day';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = !!pref.enabled;
+    check.onchange = ()=>{
+      notificationPrefs.workoutSchedule[String(i)].enabled = check.checked;
+      syncToCloud();
+      renderNotifications();
+      startSmartNotifications();
+    };
+    label.appendChild(check);
+    label.appendChild(document.createTextNode(SMART_DAY_NAMES[i]));
+    const time = document.createElement('input');
+    time.type = 'time';
+    time.value = pref.time || DEFAULT_WORKOUT_TIME;
+    time.onchange = ()=>{
+      notificationPrefs.workoutSchedule[String(i)].time = time.value || DEFAULT_WORKOUT_TIME;
+      syncToCloud();
+      renderNotifications();
+      startSmartNotifications();
+    };
+    row.appendChild(label);
+    row.appendChild(time);
+    grid.appendChild(row);
+  }
+}
+
+function renderNotifications(){
+  const status = document.getElementById('notifyStatus');
+  if(!status) return;
+  const nativeStatus = ("Notification" in window && Notification.permission === "granted") ? "Native on" : "In-app";
+  status.textContent = notificationPrefs.enabled ? nativeStatus : "Off";
+  const toggle = document.getElementById('notifyToggleBtn');
+  toggle.textContent = notificationPrefs.enabled ? "Pause" : "Enable";
+  toggle.classList.toggle('secondary', notificationPrefs.enabled);
+
+  const waterSwitch = document.getElementById('waterNotifyToggle');
+  const workoutSwitch = document.getElementById('workoutNotifyToggle');
+  waterSwitch.classList.toggle('on', notificationPrefs.waterEnabled);
+  workoutSwitch.classList.toggle('on', notificationPrefs.workoutEnabled);
+
+  const progress = hydrationProgress();
+  document.getElementById('waterTargetVal').textContent = progress.target;
+  document.getElementById('waterLoggedVal').textContent = progress.logged;
+  document.getElementById('waterRemainVal').textContent = progress.remaining;
+  document.getElementById('waterFill').style.width = `${Math.round(progress.ratio * 100)}%`;
+  document.getElementById('activityLevelSelect').value = notificationPrefs.activityLevel;
+  document.getElementById('hydrationCopy').textContent = `${ACTIVITY_LEVELS[notificationPrefs.activityLevel].label}; target calculated from ${Math.round(latestWeightKg())} kg and ${profile.heightCm || 170} cm.`;
+  document.getElementById('hydrationNextHint').textContent = hydrationReminderPlan().label;
+
+  document.getElementById('workoutLeadSelect').value = String(notificationPrefs.workoutLeadMinutes);
+  const workoutPlan = workoutReminderPlan();
+  document.getElementById('workoutNextHint').textContent = workoutPlan.label;
+  const next = scheduledWorkoutForDate(new Date());
+  document.getElementById('workoutCopy').textContent = next
+    ? `${next.label} at ${timeLabel(next.at)} today.`
+    : "No workout scheduled today.";
+  document.getElementById('notifyEngineCopy').textContent = notificationPrefs.enabled
+    ? "Active. Reminders adapt to hydration progress, workout streaks, missed sessions, and recovery."
+    : "Paused. Enable to use browser and in-app reminders.";
+  renderWorkoutScheduleGrid();
+}
+
+document.getElementById('notifyToggleBtn').onclick = async ()=>{
+  if(notificationPrefs.enabled){
+    notificationPrefs.enabled = false;
+    stopSmartNotifications();
+    syncToCloud();
+    renderNotifications();
+    showToast("Smart notifications paused");
+    return;
+  }
+  notificationPrefs.enabled = true;
+  const nativeGranted = await requestSmartNotificationPermission();
+  syncToCloud();
+  renderNotifications();
+  startSmartNotifications();
+  showToast(nativeGranted ? "Smart notifications enabled" : "In-app reminders enabled");
+};
+
+document.getElementById('waterNotifyToggle').onclick = ()=>{
+  notificationPrefs.waterEnabled = !notificationPrefs.waterEnabled;
+  syncToCloud();
+  renderNotifications();
+  startSmartNotifications();
+};
+document.getElementById('workoutNotifyToggle').onclick = ()=>{
+  notificationPrefs.workoutEnabled = !notificationPrefs.workoutEnabled;
+  syncToCloud();
+  renderNotifications();
+  startSmartNotifications();
+};
+document.getElementById('activityLevelSelect').onchange = (e)=>{
+  notificationPrefs.activityLevel = ACTIVITY_LEVELS[e.target.value] ? e.target.value : "moderate";
+  syncToCloud();
+  renderNotifications();
+  startSmartNotifications();
+};
+document.getElementById('workoutLeadSelect').onchange = (e)=>{
+  notificationPrefs.workoutLeadMinutes = parseInt(e.target.value, 10) || 30;
+  syncToCloud();
+  renderNotifications();
+  startSmartNotifications();
+};
+document.getElementById('water250Btn').onclick = ()=>logWater(250);
+document.getElementById('water500Btn').onclick = ()=>logWater(500);
+document.getElementById('waterSnoozeBtn').onclick = ()=>snoozeHydration(30);
+document.getElementById('waterSkipBtn').onclick = skipHydrationToday;
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) runSmartNotificationCheck(); });
+window.addEventListener('focus', ()=>{ runSmartNotificationCheck(); });
 
 /* ---------- PROFILE VIEW ---------- */
 function renderProfile(){
