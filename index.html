@@ -503,7 +503,7 @@
       </div>
     </div>
 
-    <div class="range-toggle">
+    <div class="range-toggle" id="progressRangeToggle">
       <div class="chip on" data-range="7">Last 7 days</div>
       <div class="chip" data-range="30">Last 30 days</div>
     </div>
@@ -1586,9 +1586,9 @@ function renderProgress(){
   renderPRs();
 }
 
-document.querySelectorAll('.range-toggle .chip').forEach(chip=>{
+document.querySelectorAll('#progressRangeToggle .chip').forEach(chip=>{
   chip.onclick = ()=>{
-    document.querySelectorAll('.range-toggle .chip').forEach(c=>c.classList.remove('on'));
+    document.querySelectorAll('#progressRangeToggle .chip').forEach(c=>c.classList.remove('on'));
     chip.classList.add('on');
     currentRange = parseInt(chip.dataset.range);
     renderProgress();
