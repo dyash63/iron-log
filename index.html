@@ -510,7 +510,7 @@
 
     <div class="stat-row">
       <div class="stat-box"><div class="stat-num" id="statWorkouts">0</div><div class="stat-label">Sessions</div></div>
-      <div class="stat-box"><div class="stat-num" id="statVolume">0</div><div class="stat-label">Total Volume (kg)</div></div>
+      <div class="stat-box"><div class="stat-num" id="statVolume">0</div><div class="stat-label">Total Volume (<span id="volumeUnitLabel">kg</span>)</div></div>
       <div class="stat-box"><div class="stat-num" id="statAvg">0</div><div class="stat-label">Avg / Session</div></div>
     </div>
 
@@ -574,18 +574,22 @@
 
     <div class="card">
       <div class="card-head"><div class="card-title">Stats</div></div>
+      <div class="range-toggle" id="unitToggle">
+        <div class="chip" data-unit="kg">Kilograms (kg)</div>
+        <div class="chip" data-unit="lbs">Pounds (lbs)</div>
+      </div>
       <div class="stat-row">
-        <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (kg)</div></div>
+        <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (<span id="weightUnitLabel">kg</span>)</div></div>
         <div class="stat-box"><input type="number" class="stat-edit" id="profHeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Height (cm)</div></div>
         <div class="stat-box"><div class="stat-num" id="profBMI">—</div><div class="stat-label">BMI</div></div>
       </div>
-      <div class="hint">Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.</div>
+      <div class="hint" id="proteinHint">Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.</div>
     </div>
 
     <div class="card">
       <div class="card-head"><div class="card-title">Bodyweight Log</div></div>
       <div class="weight-log-row">
-        <input type="number" class="num" id="weightLogInput" inputmode="decimal" placeholder="Today's weight (kg)">
+        <input type="number" class="num" id="weightLogInput" inputmode="decimal" placeholder="Today's weight (kg)" data-placeholder-prefix="Today's weight">
         <button class="add-exercise-btn" id="logWeightBtn" style="width:auto;padding:0 16px;">+ Log</button>
       </div>
       <div class="hint">Logging your weight here feeds the progression graph on the Progress tab.</div>
@@ -848,6 +852,59 @@ let dayPlan = loadDayPlanLocal();
 let profile = loadProfileLocal();
 let weightLog = loadWeightLogLocal();
 
+/* ---------- WEIGHT UNITS (kg / lbs) ---------- */
+// All weights are always stored in kg internally (in profile, weightLog, and
+// every exercise set). These helpers only affect what's shown on screen and
+// what typed values mean.
+const KG_PER_LB = 0.45359237;
+function getUnit(){ return profile.units === 'lbs' ? 'lbs' : 'kg'; }
+function unitLabel(){ return getUnit(); }
+function kgToLb(kg){ return kg / KG_PER_LB; }
+function lbToKg(lb){ return lb * KG_PER_LB; }
+function toDisplayWeight(kg, decimals=0){
+  if(kg==null || isNaN(kg)) return null;
+  const v = getUnit()==='lbs' ? kgToLb(kg) : kg;
+  const f = Math.pow(10, decimals);
+  return Math.round(v*f)/f;
+}
+function toKgFromDisplay(val){
+  if(val==null || isNaN(val)) return null;
+  return getUnit()==='lbs' ? lbToKg(val) : val;
+}
+function weightOptionsHTML(){
+  const max = getUnit()==='lbs' ? 220 : 100;
+  let html = '<option value="">—</option>';
+  for(let n=1;n<=max;n++) html += `<option value="${n}">${n}</option>`;
+  return html;
+}
+function applyUnitLabels(){
+  const u = unitLabel();
+  document.querySelectorAll('#weightUnitLabel, #volumeUnitLabel').forEach(el=>{ el.textContent = u; });
+  const logInput = document.getElementById('weightLogInput');
+  if(logInput) logInput.placeholder = `Today's weight (${u})`;
+  const hint = document.getElementById('proteinHint');
+  if(hint){
+    hint.textContent = u === 'lbs'
+      ? "Aim for roughly 0.64–0.77g of protein per lb of bodyweight per day, spread across meals, from whichever protein sources fit your diet."
+      : "Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.";
+  }
+  document.querySelectorAll('#unitToggle .chip').forEach(chip=>{
+    chip.classList.toggle('on', chip.dataset.unit === u);
+  });
+}
+function setWeightUnit(u){
+  profile.units = u === 'lbs' ? 'lbs' : 'kg';
+  syncToCloud();
+  applyUnitLabels();
+  renderProfile();
+  renderExerciseList();
+  renderProgress();
+  renderHistory();
+}
+document.querySelectorAll('#unitToggle .chip').forEach(chip=>{
+  chip.onclick = ()=> setWeightUnit(chip.dataset.unit);
+});
+
 async function syncToCloud() {
   saveLogsLocal(logs);
   saveDayPlanLocal(dayPlan);
@@ -1084,7 +1141,7 @@ function finisherDetail(finisher, value){
   const log = normalizeFinisherLog(value, finisher);
   const parts = [];
   if(log.sets != null) parts.push(`${log.sets} set${log.sets === 1 ? '' : 's'}`);
-  if(log.weight != null) parts.push(`${formatFinisherWeight(log.weight)} kg`);
+  if(log.weight != null) parts.push(`${formatFinisherWeight(toDisplayWeight(log.weight, 1))} ${unitLabel()}`);
   return parts.length ? parts.join(' · ') : finisher.sub;
 }
 
@@ -1136,20 +1193,21 @@ function renderFinisher(){
 
     const weightWrap = document.createElement('label');
     weightWrap.className = 'finisher-control';
-    weightWrap.innerHTML = '<span>Kg</span>';
+    weightWrap.innerHTML = `<span>${unitLabel()==='lbs'?'Lbs':'Kg'}</span>`;
     const weightInput = document.createElement('input');
     weightInput.type = 'number';
     weightInput.className = 'num';
     weightInput.inputMode = 'decimal';
     weightInput.min = '0';
     weightInput.step = '0.5';
-    weightInput.placeholder = 'kg';
-    weightInput.value = log.weight != null ? String(log.weight) : '';
+    weightInput.placeholder = unitLabel();
+    weightInput.value = log.weight != null ? String(toDisplayWeight(log.weight, 1)) : '';
     weightWrap.appendChild(weightInput);
 
     function persist(){
       const sets = parsePositiveInt(setsInput.value);
-      const weight = parsePositiveWeight(weightInput.value);
+      const weightDisplay = parsePositiveWeight(weightInput.value);
+      const weight = weightDisplay != null ? toKgFromDisplay(weightDisplay) : null;
       if(sets == null && weight == null){
         delete bucket[w.id];
       } else {
@@ -1386,23 +1444,25 @@ function renderExerciseList(){
     body.innerHTML = buildExercisePreviewHTML(ex.group, ex.name);
     const grid = document.createElement('div');
     grid.className = 'sets-grid';
-    grid.innerHTML = `<div></div><div class="col-label">Weight (kg)</div><div class="col-label">Reps done</div>`;
+    grid.innerHTML = `<div></div><div class="col-label">Weight (${unitLabel()})</div><div class="col-label">Reps done</div>`;
     REP_SCHEME.forEach((target, i)=>{
       const row1 = document.createElement('div');
       row1.className = 'set-label';
       row1.innerHTML = `Set ${i+1}<br><b>×${target}</b>`;
       const wInput = document.createElement('select');
       wInput.className = 'num';
-      wInput.innerHTML = NUM_OPTIONS_HTML;
-      wInput.value = ex.sets[i] && ex.sets[i].weight!=null ? String(ex.sets[i].weight) : '';
+      wInput.innerHTML = weightOptionsHTML();
+      const storedKg = ex.sets[i] && ex.sets[i].weight!=null ? ex.sets[i].weight : null;
+      wInput.value = storedKg!=null ? String(Math.round(toDisplayWeight(storedKg,0))) : '';
       const rInput = document.createElement('select');
       rInput.className = 'num';
       rInput.innerHTML = NUM_OPTIONS_HTML;
       rInput.value = ex.sets[i] && ex.sets[i].reps!=null ? String(ex.sets[i].reps) : '';
 
       function persist(){
-        const w = parseFloat(wInput.value); const r = parseInt(rInput.value);
-        ex.sets[i] = { weight: isNaN(w)?null:w, reps: isNaN(r)?null:r };
+        const wDisplay = parseFloat(wInput.value); const r = parseInt(rInput.value);
+        const w = isNaN(wDisplay) ? null : toKgFromDisplay(wDisplay);
+        ex.sets[i] = { weight: w, reps: isNaN(r)?null:r };
         syncToCloud();
       }
       wInput.onchange = persist;
@@ -1487,8 +1547,9 @@ function renderProgress(){
   });
 
   document.getElementById('statWorkouts').textContent = sessionCount;
-  document.getElementById('statVolume').textContent = Math.round(totalVol).toLocaleString();
-  document.getElementById('statAvg').textContent = sessionCount ? Math.round(totalVol/sessionCount).toLocaleString() : 0;
+  document.getElementById('statVolume').textContent = Math.round(toDisplayWeight(totalVol,0)).toLocaleString();
+  document.getElementById('statAvg').textContent = sessionCount ? Math.round(toDisplayWeight(totalVol/sessionCount,0)).toLocaleString() : 0;
+  applyUnitLabels();
 
   const maxVol = Math.max(...rows.map(r=>r.vol), 1);
   const chart = document.getElementById('volumeChart');
@@ -1500,7 +1561,7 @@ function renderProgress(){
     row.innerHTML = `
       <div class="plate-date">${label}</div>
       <div class="plate-track"><div class="plate-fill" style="width:${(r.vol/maxVol*100)||0}%"></div></div>
-      <div class="plate-val">${Math.round(r.vol)}kg</div>
+      <div class="plate-val">${Math.round(toDisplayWeight(r.vol,0))}${unitLabel()}</div>
     `;
     chart.appendChild(row);
   });
@@ -1626,7 +1687,7 @@ document.getElementById('heatmapNext').onclick = ()=>{
 /* ---------- WEIGHT PROGRESSION GRAPH ---------- */
 function renderWeightChart(){
   const container = document.getElementById('weightChart');
-  const entries = Object.keys(weightLog).sort().map(k=>({date:k, w:weightLog[k]}));
+  const entries = Object.keys(weightLog).sort().map(k=>({date:k, w:toDisplayWeight(weightLog[k],1)}));
   if(entries.length < 2){
     container.innerHTML = '<div class="graph-empty">Log your weight on at least 2 different days (Profile tab) to see a progression graph.</div>';
     return;
@@ -1656,8 +1717,8 @@ function renderWeightChart(){
             <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"></stop>
           </linearGradient>
         </defs>
-        <text class="wchart-axis-label" x="${padL}" y="${padT-4}">${max.toFixed(1)}kg</text>
-        <text class="wchart-axis-label" x="${padL}" y="${H-padB+14}">${min.toFixed(1)}kg</text>
+        <text class="wchart-axis-label" x="${padL}" y="${padT-4}">${max.toFixed(1)}${unitLabel()}</text>
+        <text class="wchart-axis-label" x="${padL}" y="${H-padB+14}">${min.toFixed(1)}${unitLabel()}</text>
         <text class="wchart-axis-label" x="${padL}" y="${H-6}">${firstLabel}</text>
         <text class="wchart-axis-label" x="${W-padR-40}" y="${H-6}">${lastLabel}</text>
         <polygon class="wchart-fill" points="${areaPts}"></polygon>
@@ -1700,7 +1761,7 @@ function renderPRs(){
         <div class="pr-tag">${GROUP_LABEL[r.group]||''}</div>
       </div>
       <div>
-        <div class="pr-val">${r.weight}kg × ${r.reps}</div>
+        <div class="pr-val">${toDisplayWeight(r.weight,0)}${unitLabel()} × ${r.reps}</div>
         <div class="pr-date">${dateLabel}</div>
       </div>
     `;
@@ -1734,7 +1795,7 @@ function renderHistory(){
         <div class="hist-date">${dateLabel}</div>
         <div class="hist-groups">${groups.length ? groups.map(g=>GROUP_LABEL[g]).join(' + ') : 'Rest / Unspecified'}</div>
       </div>
-      <div class="hist-vol">${Math.round(vol)}kg <span class="ex-toggle">+</span></div>
+      <div class="hist-vol">${Math.round(toDisplayWeight(vol,0))}${unitLabel()} <span class="ex-toggle">+</span></div>
     `;
     head.onclick = ()=>item.classList.toggle('open');
     item.appendChild(head);
@@ -1793,7 +1854,7 @@ function renderHistory(){
         body.appendChild(head);
         exIds.forEach(id=>{
           const ex = entry.exercises[id];
-          const setsStr = (ex.sets||[]).map(s=> s && s.weight && s.reps ? `${s.weight}×${s.reps}` : '—').join('  ·  ');
+          const setsStr = (ex.sets||[]).map(s=> s && s.weight && s.reps ? `${toDisplayWeight(s.weight,0)}${unitLabel()}×${s.reps}` : '—').join('  ·  ');
           const row = document.createElement('div');
           row.className = 'hist-ex-row';
           row.innerHTML = `<b>${ex.name}</b><div class="hist-ex-sets">${setsStr}</div>`;
@@ -1810,9 +1871,10 @@ function renderHistory(){
 function renderProfile(){
   const wInput = document.getElementById('profWeightInput');
   const hInput = document.getElementById('profHeightInput');
-  if(document.activeElement !== wInput) wInput.value = profile.weightKg || '';
+  if(document.activeElement !== wInput) wInput.value = profile.weightKg!=null ? toDisplayWeight(profile.weightKg, 1) : '';
   if(document.activeElement !== hInput) hInput.value = profile.heightCm || '';
   updateBMI();
+  applyUnitLabels();
 
   const overview = document.getElementById('splitOverview');
   overview.innerHTML = "";
@@ -1836,7 +1898,7 @@ function updateBMI(){
 
 document.getElementById('profWeightInput').oninput = (e)=>{
   const v = parseFloat(e.target.value);
-  profile.weightKg = isNaN(v) ? null : v;
+  profile.weightKg = isNaN(v) ? null : toKgFromDisplay(v);
   updateBMI();
   syncToCloud();
 };
@@ -1851,10 +1913,11 @@ document.getElementById('logWeightBtn').onclick = ()=>{
   const input = document.getElementById('weightLogInput');
   const v = parseFloat(input.value);
   if(isNaN(v) || v<=0){ showToast("Enter a valid weight"); return; }
+  const kg = toKgFromDisplay(v);
   const key = dateKey(new Date());
-  weightLog[key] = v;
-  profile.weightKg = v;
-  document.getElementById('profWeightInput').value = v;
+  weightLog[key] = kg;
+  profile.weightKg = kg;
+  document.getElementById('profWeightInput').value = toDisplayWeight(kg, 1);
   updateBMI();
   input.value = '';
   syncToCloud();
@@ -2007,7 +2070,7 @@ function buildShareCard(dateOverride){
     .map(f => ({ name: f.name, detail: finisherDetail(f, finisherBucket[f.id]) }));
 
   const exerciseRows = Object.values(entry.exercises||{}).map(ex=>{
-    const setsStr = (ex.sets||[]).filter(s=>s && s.weight && s.reps).map(s=>`${s.weight}kg × ${s.reps}`).join('   ·   ');
+    const setsStr = (ex.sets||[]).filter(s=>s && s.weight && s.reps).map(s=>`${toDisplayWeight(s.weight,0)}${unitLabel()} × ${s.reps}`).join('   ·   ');
     return { name: ex.name, detail: setsStr || 'No sets logged' };
   });
 
@@ -2111,7 +2174,7 @@ function buildShareCard(dateOverride){
       }
       case 'stats': {
         const stats = [
-          {label:'VOLUME (KG)', value: Math.round(cmd.vol).toLocaleString()},
+          {label:`VOLUME (${unitLabel().toUpperCase()})`, value: Math.round(toDisplayWeight(cmd.vol,0)).toLocaleString()},
           {label:'SETS LOGGED', value: String(cmd.setsCompleted)},
           {label:'EXERCISES', value: String(cmd.exCount)}
         ];
@@ -2355,8 +2418,8 @@ function buildMonthlyShareCard(monthDate){
       case 'monthStats': {
         const stats = [
           {label:'SESSIONS', value: String(cmd.sessions)},
-          {label:'TOTAL VOLUME (KG)', value: Math.round(cmd.totalVol).toLocaleString()},
-          {label:'AVG / SESSION', value: Math.round(cmd.avgVol).toLocaleString()}
+          {label:`TOTAL VOLUME (${unitLabel().toUpperCase()})`, value: Math.round(toDisplayWeight(cmd.totalVol,0)).toLocaleString()},
+          {label:'AVG / SESSION', value: Math.round(toDisplayWeight(cmd.avgVol,0)).toLocaleString()}
         ];
         const boxW = 280, boxGap = 30, boxH = 160;
         stats.forEach((s,i)=>{
@@ -2460,6 +2523,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
 
 /* ---------- MASTER RENDER & INIT ---------- */
 function renderAll(){
+  applyUnitLabels();
   renderHeader();
   renderDayStrip();
   renderGroupSelect();
