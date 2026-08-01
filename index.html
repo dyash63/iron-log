@@ -599,6 +599,12 @@
     </div>
 
     <div class="card">
+      <div class="card-head"><div class="card-title">📅 Weekly Summary</div></div>
+      <div class="hint" style="margin-bottom:10px;">Shares Monday through Sunday of the current week.</div>
+      <button class="finish-btn outline" id="shareWeekBtn">📤 Share This Week's Workouts</button>
+    </div>
+
+    <div class="card">
       <div class="card-head">
         <div class="card-title">🔥 Monthly Heatmap</div>
       </div>
@@ -639,6 +645,19 @@
   <div class="view" id="view-profile">
     <div class="auth-card" id="authCard">
       <!-- Dynamic Auth Info rendered by JS -->
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Public Profile</div></div>
+      <div class="hint" style="margin-bottom:10px;">Shown on your shared workout images. All fields are optional.</div>
+      <input type="text" class="num" id="profNameInput" placeholder="Your name" style="width:100%;margin-bottom:10px;" maxlength="60">
+      <div class="weight-log-row" style="margin-bottom:4px;">
+        <input type="text" class="num" id="profUsernameInput" placeholder="Username (e.g. ironyash)" maxlength="20">
+        <button class="add-exercise-btn" id="profUsernameSaveBtn" style="width:auto;padding:0 16px;">Save</button>
+      </div>
+      <div class="hint" id="profUsernameStatus">3–20 characters: letters, numbers, underscore.</div>
+      <input type="text" class="num" id="profGymInput" placeholder="Gym name (optional)" style="width:100%;margin:10px 0;" maxlength="60">
+      <input type="text" class="num" id="profCountryInput" placeholder="Country (optional)" style="width:100%;" maxlength="60">
     </div>
 
     <div class="card">
@@ -2552,6 +2571,15 @@ function renderProfile(){
   updateBMI();
   applyUnitLabels();
 
+  const nameInput = document.getElementById('profNameInput');
+  const usernameInput = document.getElementById('profUsernameInput');
+  const gymInput = document.getElementById('profGymInput');
+  const countryInput = document.getElementById('profCountryInput');
+  if(document.activeElement !== nameInput) nameInput.value = profile.name || '';
+  if(document.activeElement !== usernameInput) usernameInput.value = profile.username || '';
+  if(document.activeElement !== gymInput) gymInput.value = profile.gymName || '';
+  if(document.activeElement !== countryInput) countryInput.value = profile.country || '';
+
   const overview = document.getElementById('splitOverview');
   overview.innerHTML = "";
   const names = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -2584,6 +2612,80 @@ document.getElementById('profHeightInput').oninput = (e)=>{
   updateBMI();
   syncToCloud();
 };
+
+document.getElementById('profNameInput').oninput = (e)=>{
+  profile.name = e.target.value.trim() || null;
+  syncToCloud();
+};
+document.getElementById('profGymInput').oninput = (e)=>{
+  profile.gymName = e.target.value.trim() || null;
+  syncToCloud();
+};
+document.getElementById('profCountryInput').oninput = (e)=>{
+  profile.country = e.target.value.trim() || null;
+  syncToCloud();
+};
+
+function isValidUsername(u){
+  return /^[a-zA-Z0-9_]{3,20}$/.test(u);
+}
+
+async function saveUsername(){
+  const statusEl = document.getElementById('profUsernameStatus');
+  const input = document.getElementById('profUsernameInput');
+  const value = input.value.trim();
+  const user = firebase.auth().currentUser;
+
+  if(!value){
+    profile.username = null;
+    syncToCloud();
+    statusEl.textContent = "3–20 characters: letters, numbers, underscore.";
+    statusEl.style.color = '';
+    return;
+  }
+  if(!isValidUsername(value)){
+    statusEl.textContent = "Only letters, numbers, and underscore — 3 to 20 characters.";
+    statusEl.style.color = '#FF5C39';
+    return;
+  }
+  if(!user){
+    statusEl.textContent = "Sign in to claim a username.";
+    statusEl.style.color = '#FF5C39';
+    return;
+  }
+  const lower = value.toLowerCase();
+  const currentLower = (profile.username || '').toLowerCase();
+  if(lower === currentLower){
+    statusEl.textContent = "This is already your username.";
+    statusEl.style.color = '';
+    return;
+  }
+  statusEl.textContent = "Checking availability...";
+  statusEl.style.color = '';
+  try{
+    const docRef = db.collection('usernames').doc(lower);
+    const existing = await docRef.get();
+    if(existing.exists && existing.data().uid !== user.uid){
+      statusEl.textContent = "That username is taken — try another.";
+      statusEl.style.color = '#FF5C39';
+      return;
+    }
+    if(currentLower){
+      db.collection('usernames').doc(currentLower).delete().catch(()=>{});
+    }
+    await docRef.set({ uid: user.uid, username: value });
+    profile.username = value;
+    syncToCloud();
+    renderProfile();
+    statusEl.textContent = "Username saved!";
+    statusEl.style.color = '#4ADE80';
+  }catch(e){
+    console.error("Username save error:", e);
+    statusEl.textContent = "Couldn't check availability — try again.";
+    statusEl.style.color = '#FF5C39';
+  }
+}
+document.getElementById('profUsernameSaveBtn').onclick = saveUsername;
 
 document.getElementById('logWeightBtn').onclick = ()=>{
   const input = document.getElementById('weightLogInput');
@@ -2725,6 +2827,15 @@ function measureWrapLines(ctx, text, maxWidth){
   return lines.length ? lines : [''];
 }
 
+function buildIdentityLines(){
+  const lines = [];
+  const nameUser = [profile.name, profile.username ? `@${profile.username}` : null].filter(Boolean).join('  ·  ');
+  if(nameUser) lines.push(nameUser);
+  const gymCountry = [profile.gymName, profile.country].filter(Boolean).join('  ·  ');
+  if(gymCountry) lines.push(gymCountry);
+  return lines;
+}
+
 function buildShareCard(dateOverride){
   const prevSelectedDate = selectedDate;
   if(dateOverride) selectedDate = dateOverride;
@@ -2763,7 +2874,13 @@ function buildShareCard(dateOverride){
   cmds.push({type:'title', y});
   y = 210;
   cmds.push({type:'date', y});
-  y = 250;
+  y += 42;
+  const identityLines = buildIdentityLines();
+  if(identityLines.length){
+    cmds.push({type:'identity', y, lines:identityLines});
+    y += identityLines.length * 34;
+  }
+  y += 8;
   cmds.push({type:'divider', y});
   y += 100;
 
@@ -2835,6 +2952,14 @@ function buildShareCard(dateOverride){
         ctx.font = "500 30px Inter, sans-serif";
         const dateLabel = selectedDate.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
         ctx.fillText(dateLabel.toUpperCase(), marginX, cmd.y);
+        break;
+      }
+      case 'identity': {
+        ctx.font = "600 26px Inter, sans-serif";
+        cmd.lines.forEach((line,i)=>{
+          ctx.fillStyle = i===0 ? '#EDEDEF' : '#8B8F98';
+          ctx.fillText(line, marginX, cmd.y + i*34);
+        });
         break;
       }
       case 'divider': {
@@ -3004,7 +3129,13 @@ function buildMonthlyShareCard(monthDate){
   cmds.push({type:'title', y});
   y = 210;
   cmds.push({type:'subtitle', y, text:'MONTHLY PROGRESS'});
-  y = 250;
+  y += 42;
+  const identityLinesM = buildIdentityLines();
+  if(identityLinesM.length){
+    cmds.push({type:'identity', y, lines:identityLinesM});
+    y += identityLinesM.length * 34;
+  }
+  y += 8;
   cmds.push({type:'divider', y});
   y += 100;
 
@@ -3078,6 +3209,14 @@ function buildMonthlyShareCard(monthDate){
         ctx.fillStyle = '#8B8F98';
         ctx.font = "500 30px Inter, sans-serif";
         ctx.fillText(cmd.text, marginX, cmd.y);
+        break;
+      }
+      case 'identity': {
+        ctx.font = "600 26px Inter, sans-serif";
+        cmd.lines.forEach((line,i)=>{
+          ctx.fillStyle = i===0 ? '#EDEDEF' : '#8B8F98';
+          ctx.fillText(line, marginX, cmd.y + i*34);
+        });
         break;
       }
       case 'divider': {
@@ -3177,6 +3316,187 @@ document.getElementById('shareMonthBtn').onclick = async ()=>{
     const blob = await buildMonthlyShareCard(heatmapMonth);
     const label = heatmapMonth.toLocaleDateString('en-US',{month:'short', year:'numeric'}).replace(' ','-');
     await shareBlobAsImage(blob, `ironlog-monthly-${label}.png`, 'My monthly progress', 'Logged with Iron Log');
+  }catch(e){
+    if(e && e.name === 'AbortError') return;
+    console.error('Share error:', e);
+    showToast("Couldn't create the share image");
+  }
+};
+
+function startOfWeek(d){
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const diffToMonday = (day === 0) ? -6 : (1 - day);
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMonday);
+  return monday;
+}
+
+function buildWeeklyShareCard(weekStart){
+  const dayLabels = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+  const dayRows = [];
+  let sessions = 0, totalVol = 0, maxVol = 1;
+
+  for(let i=0;i<7;i++){
+    const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate()+i);
+    const key = dateKey(d);
+    const entry = logs[key];
+    const v = computeVolumeForKey(key);
+    if(v>maxVol) maxVol = v;
+    const logged = hasAnyLog(key);
+    if(logged){ sessions++; totalVol += v; }
+    const groups = (entry && entry.groups && entry.groups.length) ? entry.groups : [];
+    const focusLabel = groups.length ? groups.map(g=>GROUP_LABEL[g]||g).join(' + ') : (logged ? 'Workout' : 'Rest');
+    dayRows.push({ label:dayLabels[i], date:d, logged, vol:v, focusLabel });
+  }
+  const avgVol = sessions ? Math.round(totalVol/sessions) : 0;
+  const weekRangeLabel = `${weekStart.toLocaleDateString('en-US',{month:'short', day:'numeric'})} – ${new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate()+6).toLocaleDateString('en-US',{month:'short', day:'numeric'})}`;
+
+  const width = 1080, marginX = 80;
+  const contentW = width - marginX*2;
+  const mctx = document.createElement('canvas').getContext('2d');
+  const cmds = [];
+  let y = 160;
+
+  cmds.push({type:'title', y});
+  y = 210;
+  cmds.push({type:'subtitle', y, text:`WEEKLY WORKOUTS · ${weekRangeLabel.toUpperCase()}`});
+  y += 42;
+  const identityLinesW = buildIdentityLines();
+  if(identityLinesW.length){
+    cmds.push({type:'identity', y, lines:identityLinesW});
+    y += identityLinesW.length * 34;
+  }
+  y += 8;
+  cmds.push({type:'divider', y});
+  y += 100;
+
+  const statsY = y;
+  cmds.push({type:'weekStats', y:statsY, sessions, totalVol, avgVol});
+  y = statsY + 160 + 60;
+
+  cmds.push({type:'sectionTitle', y, text:'THIS WEEK'});
+  y += 44;
+  dayRows.forEach((r,idx)=>{
+    mctx.font = "700 32px Inter, sans-serif";
+    const nameLines = measureWrapLines(mctx, `${r.label} · ${r.focusLabel}`, contentW);
+    const detailText = r.logged ? `${Math.round(toDisplayWeight(r.vol,0)).toLocaleString()} ${unitLabel()} volume` : 'No workout logged';
+    mctx.font = "500 24px Inter, sans-serif";
+    const detailLines = measureWrapLines(mctx, detailText, contentW);
+    cmds.push({type:'weekRow', y, nameLines, detailLines, logged:r.logged});
+    y += nameLines.length*38 + detailLines.length*30 + 18;
+    if(idx < dayRows.length-1) cmds.push({type:'rowDivider', y: y-9});
+  });
+
+  y += 40;
+  cmds.push({type:'footer', y});
+  const finalHeight = Math.max(1350, y + 60);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = finalHeight;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0,'#1b1d23');
+  grad.addColorStop(1,'#0f1013');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#FF5C39';
+  ctx.fillRect(0,0,canvas.width,14);
+  ctx.textAlign = 'left';
+
+  cmds.forEach(cmd=>{
+    switch(cmd.type){
+      case 'title': {
+        ctx.fillStyle = '#EDEDEF';
+        ctx.font = "700 54px Oswald, sans-serif";
+        ctx.fillText('IRON ', marginX, cmd.y);
+        const w = ctx.measureText('IRON ').width;
+        ctx.fillStyle = '#FF5C39';
+        ctx.fillText('LOG', marginX+w, cmd.y);
+        break;
+      }
+      case 'subtitle': {
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 28px Inter, sans-serif";
+        ctx.fillText(cmd.text, marginX, cmd.y);
+        break;
+      }
+      case 'identity': {
+        ctx.font = "600 26px Inter, sans-serif";
+        cmd.lines.forEach((line,i)=>{
+          ctx.fillStyle = i===0 ? '#EDEDEF' : '#8B8F98';
+          ctx.fillText(line, marginX, cmd.y + i*34);
+        });
+        break;
+      }
+      case 'divider': {
+        ctx.strokeStyle = '#2A2D35'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(marginX,cmd.y); ctx.lineTo(width-marginX,cmd.y); ctx.stroke();
+        break;
+      }
+      case 'weekStats': {
+        const stats = [
+          {label:'SESSIONS', value: String(cmd.sessions) + ' / 7'},
+          {label:`TOTAL VOLUME (${unitLabel().toUpperCase()})`, value: Math.round(toDisplayWeight(cmd.totalVol,0)).toLocaleString()},
+          {label:'AVG / SESSION', value: Math.round(toDisplayWeight(cmd.avgVol,0)).toLocaleString()}
+        ];
+        const boxW = 280, boxGap = 30, boxH = 160;
+        stats.forEach((s,i)=>{
+          const x = marginX + i*(boxW+boxGap);
+          ctx.fillStyle = '#1B1D22';
+          roundRect(ctx, x, cmd.y, boxW, boxH, 14); ctx.fill();
+          ctx.strokeStyle = '#2A2D35'; ctx.lineWidth = 2;
+          roundRect(ctx, x, cmd.y, boxW, boxH, 14); ctx.stroke();
+          ctx.fillStyle = '#FF5C39';
+          ctx.font = "700 44px Oswald, sans-serif";
+          ctx.textAlign = 'center';
+          ctx.fillText(s.value, x+boxW/2, cmd.y+80);
+          ctx.fillStyle = '#8B8F98';
+          ctx.font = "600 16px Inter, sans-serif";
+          ctx.fillText(s.label, x+boxW/2, cmd.y+118);
+          ctx.textAlign = 'left';
+        });
+        break;
+      }
+      case 'sectionTitle': {
+        ctx.fillStyle = '#FF5C39';
+        ctx.font = "700 22px Inter, sans-serif";
+        ctx.fillText(cmd.text, marginX, cmd.y);
+        break;
+      }
+      case 'weekRow': {
+        let ry = cmd.y;
+        ctx.fillStyle = cmd.logged ? '#EDEDEF' : '#5A5D64';
+        ctx.font = "700 32px Inter, sans-serif";
+        cmd.nameLines.forEach(line=>{ ctx.fillText(line, marginX, ry); ry += 38; });
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 24px Inter, sans-serif";
+        cmd.detailLines.forEach(line=>{ ctx.fillText(line, marginX, ry); ry += 30; });
+        break;
+      }
+      case 'rowDivider': {
+        ctx.strokeStyle = '#22242A'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(marginX, cmd.y); ctx.lineTo(width-marginX, cmd.y); ctx.stroke();
+        break;
+      }
+      case 'footer': {
+        ctx.fillStyle = '#8B8F98';
+        ctx.font = "500 22px Inter, sans-serif";
+        ctx.fillText('TRACKED WITH IRON LOG', marginX, cmd.y);
+        break;
+      }
+    }
+  });
+
+  return new Promise(resolve=>canvas.toBlob(resolve, 'image/png', 0.95));
+}
+
+document.getElementById('shareWeekBtn').onclick = async ()=>{
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const weekStart = startOfWeek(new Date());
+    const blob = await buildWeeklyShareCard(weekStart);
+    const label = dateKey(weekStart);
+    await shareBlobAsImage(blob, `ironlog-weekly-${label}.png`, 'My weekly workouts', 'Logged with Iron Log');
   }catch(e){
     if(e && e.name === 'AbortError') return;
     console.error('Share error:', e);
