@@ -3230,7 +3230,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     if(tab.dataset.view==='progress') renderProgress();
     if(tab.dataset.view==='history') renderHistory();
-    if(tab.dataset.view==='profile') renderProfile();
+    if(tab.dataset.view==='profile') { renderProfile(); renderNotifications(); }
   };
 });
 
@@ -3246,8 +3246,10 @@ function renderAll(){
   renderFinisher();
   renderExercisePicker();
   renderExerciseList();
+  renderNotifications();
 }
 renderAll();
+startSmartNotifications();
 </script>
 </body>
 </html>
