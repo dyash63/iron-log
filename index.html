@@ -709,19 +709,13 @@
           <div class="smart-row">
             <div class="smart-main">
               <div class="smart-label">Gym Attendance</div>
-              <div class="smart-sub" id="workoutCopy">Set preferred days and times.</div>
+              <div class="smart-sub" id="workoutCopy">Reminders at 9 AM, 12 PM, 3 PM, 6 PM, 9 PM.</div>
             </div>
             <button class="smart-switch" id="workoutNotifyToggle" type="button" aria-label="Toggle workout reminders"></button>
           </div>
           <div class="notify-control-row" style="margin:10px 0;">
-            <select class="num" id="workoutLeadSelect">
-              <option value="15">15 min before</option>
-              <option value="30">30 min before</option>
-              <option value="45">45 min before</option>
-              <option value="60">60 min before</option>
-            </select>
+            <button class="mini-btn good" id="attendanceYesBtn" type="button">✓ I went today</button>
           </div>
-          <div class="schedule-grid" id="workoutScheduleGrid"></div>
           <div class="hint" id="workoutNextHint">Next workout reminder will appear here.</div>
         </div>
       </div>
@@ -970,35 +964,15 @@ const ACTIVITY_LEVELS = {
   moderate: { label:"Moderate activity", bonusMl:350 },
   high: { label:"High activity", bonusMl:700 }
 };
-const DEFAULT_WORKOUT_TIME = "18:30";
-
-function buildDefaultWorkoutSchedule(){
-  const schedule = {};
-  for(let i=0;i<7;i++){
-    const hasPlannedSplit = (DEFAULT_SPLIT[i] || []).length > 0;
-    schedule[i] = { enabled: hasPlannedSplit, time: DEFAULT_WORKOUT_TIME };
-  }
-  return schedule;
-}
+const GYM_REMINDER_HOURS = [9, 12, 15, 18, 21];
 
 function normalizeNotificationPrefs(input){
   const raw = input || {};
-  const schedule = buildDefaultWorkoutSchedule();
-  Object.keys(raw.workoutSchedule || {}).forEach(day=>{
-    const d = String(day);
-    if(!schedule[d]) schedule[d] = { enabled:false, time:DEFAULT_WORKOUT_TIME };
-    schedule[d] = {
-      enabled: !!raw.workoutSchedule[day].enabled,
-      time: raw.workoutSchedule[day].time || DEFAULT_WORKOUT_TIME
-    };
-  });
   return {
     enabled: !!raw.enabled,
     waterEnabled: raw.waterEnabled !== false,
     workoutEnabled: raw.workoutEnabled !== false,
-    activityLevel: ACTIVITY_LEVELS[raw.activityLevel] ? raw.activityLevel : "moderate",
-    workoutLeadMinutes: raw.workoutLeadMinutes || 30,
-    workoutSchedule: schedule
+    activityLevel: ACTIVITY_LEVELS[raw.activityLevel] ? raw.activityLevel : "moderate"
   };
 }
 
@@ -2192,16 +2166,15 @@ function skipHydrationToday(){
   showToast("Water reminders skipped today");
 }
 
-function scheduledWorkoutForDate(d){
-  const day = String(d.getDay());
-  const pref = notificationPrefs.workoutSchedule && notificationPrefs.workoutSchedule[day];
-  if(!pref || !pref.enabled) return null;
-  const parts = String(pref.time || DEFAULT_WORKOUT_TIME).split(':').map(n=>parseInt(n,10));
-  const hour = isNaN(parts[0]) ? 18 : parts[0];
-  const minute = isNaN(parts[1]) ? 30 : parts[1];
-  const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hour, minute, 0, 0);
-  const groups = getGroupsForDateValue(d);
-  return { at, day, groups, label:groups.length ? groups.map(g=>GROUP_LABEL[g]||g).join(" + ") : "Workout" };
+function todayAttendanceConfirmed(key=getTodayKey()){
+  return !!(notificationState[key] && notificationState[key].attendanceConfirmed);
+}
+
+function gymReminderStagesForToday(now=new Date()){
+  return GYM_REMINDER_HOURS.map(hour => ({
+    id: String(hour),
+    at: new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, 0, 0, 0)
+  }));
 }
 
 function countLoggedDays(daysBack){
@@ -2230,8 +2203,8 @@ function missedScheduledCount(daysBack=14){
   for(let i=1;i<=daysBack;i++){
     const d = new Date();
     d.setDate(d.getDate()-i);
-    const plan = scheduledWorkoutForDate(d);
-    if(plan && !hasAnyLog(dateKey(d))) missed++;
+    const key = dateKey(d);
+    if(!hasAnyLog(key) && !todayAttendanceConfirmed(key)) missed++;
   }
   return missed;
 }
@@ -2243,60 +2216,51 @@ function hoursSinceLastWorkout(){
   return (Date.now() - last.getTime()) / 3600000;
 }
 
-function workoutStagesForPlan(plan){
-  const lead = parseInt(notificationPrefs.workoutLeadMinutes, 10) || 30;
-  return [
-    { id:"pre", at:new Date(plan.at.getTime() - lead * 60000) },
-    { id:"follow1", at:new Date(plan.at.getTime() + 60 * 60000) },
-    { id:"follow2", at:new Date(plan.at.getTime() + 180 * 60000) },
-    { id:"follow3", at:new Date(plan.at.getTime() + 360 * 60000) }
-  ];
-}
-
 function workoutReminderPlan(now=new Date()){
   if(!notificationPrefs.enabled || !notificationPrefs.workoutEnabled) return { active:false, label:"Workout reminders are off." };
   const key = dateKey(now);
   if(hasAnyLog(key)) return { active:false, label:"Workout already logged today." };
-  if(notificationState.workoutSkippedKey === key) return { active:false, label:"Workout reminders skipped for today." };
-  const snoozedUntil = notificationState.workoutSnoozedUntil ? new Date(notificationState.workoutSnoozedUntil) : null;
-  if(snoozedUntil && snoozedUntil > now) return { active:true, due:false, nextAt:snoozedUntil, label:`Workout reminder snoozed until ${timeLabel(snoozedUntil)}.` };
-  const plan = scheduledWorkoutForDate(now);
-  if(!plan) return { active:false, label:"No workout scheduled today." };
+  if(todayAttendanceConfirmed(key)) return { active:false, label:"Attendance already confirmed today." };
   const state = ensureNotifyStateForKey(key);
-  const stages = workoutStagesForPlan(plan);
+  const stages = gymReminderStagesForToday(now);
   for(let i=stages.length-1;i>=0;i--){
     const stage = stages[i];
     if(now >= stage.at && !state.workoutFired[stage.id]){
-      return { active:true, due:true, key, plan, stage, label:"Workout reminder ready now." };
+      return { active:true, due:true, key, stage, label:"Workout reminder ready now." };
     }
   }
   const nextStage = stages.find(stage => !state.workoutFired[stage.id] && now < stage.at);
-  if(nextStage) return { active:true, due:false, key, plan, stage:nextStage, nextAt:nextStage.at, label:`Next workout reminder in ${minsUntilLabel(nextStage.at)}.` };
-  return { active:false, key, plan, label:"Workout reminders are done for today." };
+  if(nextStage) return { active:true, due:false, key, stage:nextStage, nextAt:nextStage.at, label:`Next workout reminder at ${timeLabel(nextStage.at)}.` };
+  return { active:false, key, label:"All 5 reminders sent for today." };
 }
 
-function workoutReminderCopy(stage, plan){
+function workoutReminderCopy(stage){
   const streak = currentStreakCount();
   const missed = missedScheduledCount();
   const sessions30 = countLoggedDays(30);
   const recoveryHours = hoursSinceLastWorkout();
-  const focus = plan.label;
+  const focus = getGroupsForDateValue(new Date());
+  const focusLabel = focus.length ? focus.map(g=>GROUP_LABEL[g]||g).join(" + ") : "Workout";
   const recoveryLine = recoveryHours != null && recoveryHours < 30
     ? "You trained recently, so scale the load if recovery feels low."
     : "Aim for one clean first set and let momentum handle the rest.";
   const progressLine = streak >= 3
     ? `Your ${streak}-day streak is worth protecting.`
     : (missed > 1 ? `${missed} planned sessions slipped recently, so make this one small and real.` : `${sessions30} sessions logged in the last 30 days.`);
-  if(stage.id === "pre"){
-    return { title:"Workout soon", body:`${focus} starts at ${timeLabel(plan.at)}. ${progressLine}` };
+  const hour = parseInt(stage.id, 10);
+  if(hour <= 9){
+    return { title:"Gym check-in", body:`${focusLabel} on deck today. ${progressLine}` };
   }
-  if(stage.id === "follow1"){
-    return { title:"No workout logged yet", body:`Still time for ${focus}. A shorter session still counts.` };
+  if(hour <= 12){
+    return { title:"Did you make it in?", body:`Still plenty of day left for ${focusLabel}.` };
   }
-  if(stage.id === "follow2"){
+  if(hour <= 15){
     return { title:"Keep the routine alive", body:`${progressLine} ${recoveryLine}` };
   }
-  return { title:"Last call for consistency", body:`Close the day with a lighter ${focus} session or log recovery honestly.` };
+  if(hour <= 18){
+    return { title:"Evening check-in", body:`A shorter ${focusLabel} session still counts.` };
+  }
+  return { title:"Last call for today", body:`Close the day with ${focusLabel}, or log recovery honestly.` };
 }
 
 function dismissSmartReminder(id){
@@ -2410,37 +2374,34 @@ function openTodayForWorkout(){
   dismissSmartReminder("workout");
 }
 
-function snoozeWorkout(minutes=60){
-  notificationState.workoutSnoozedUntil = new Date(Date.now() + minutes * 60000).toISOString();
+function confirmWorkoutAttendance(){
+  const key = getTodayKey();
+  const state = ensureNotifyStateForKey(key);
+  state.attendanceConfirmed = true;
+  state.attendanceConfirmedAt = new Date().toISOString();
   syncToCloud();
   renderNotifications();
   dismissSmartReminder("workout");
-  showToast(`Workout reminder snoozed ${minutes} min`);
+  showToast("Nice — attendance logged for today. No more reminders today.");
 }
 
-function skipWorkoutToday(){
-  notificationState.workoutSkippedKey = getTodayKey();
-  notificationState.workoutSnoozedUntil = null;
-  syncToCloud();
-  renderNotifications();
+function declineWorkoutAttendance(){
   dismissSmartReminder("workout");
-  showToast("Workout reminders skipped today");
+  showToast("Got it — you'll get the next reminder later today.");
 }
 
 function fireWorkoutReminder(plan){
   const state = ensureNotifyStateForKey(plan.key);
   state.workoutFired[plan.stage.id] = new Date().toISOString();
-  notificationState.workoutSnoozedUntil = null;
   syncToCloud();
-  const copy = workoutReminderCopy(plan.stage, plan.plan);
+  const copy = workoutReminderCopy(plan.stage);
   sendSmartNotification(
     "workout",
     copy.title,
-    copy.body,
+    `${copy.body} Did you go to the gym today?`,
     [
-      { label:"Open Today", kind:"primary", run:openTodayForWorkout },
-      { label:"Remind 1 hour", run:()=>snoozeWorkout(60) },
-      { label:"Skip", kind:"danger", run:skipWorkoutToday }
+      { label:"Yes", kind:"good", run:confirmWorkoutAttendance },
+      { label:"No", kind:"danger", run:declineWorkoutAttendance }
     ]
   );
 }
@@ -2468,42 +2429,6 @@ function startSmartNotifications(){
   smartNotifyTimer = setInterval(runSmartNotificationCheck, 60000);
 }
 
-function renderWorkoutScheduleGrid(){
-  const grid = document.getElementById('workoutScheduleGrid');
-  if(!grid) return;
-  grid.innerHTML = "";
-  for(let i=0;i<7;i++){
-    const pref = notificationPrefs.workoutSchedule[String(i)] || { enabled:false, time:DEFAULT_WORKOUT_TIME };
-    const row = document.createElement('div');
-    row.className = 'schedule-row';
-    const label = document.createElement('label');
-    label.className = 'schedule-day';
-    const check = document.createElement('input');
-    check.type = 'checkbox';
-    check.checked = !!pref.enabled;
-    check.onchange = ()=>{
-      notificationPrefs.workoutSchedule[String(i)].enabled = check.checked;
-      syncToCloud();
-      renderNotifications();
-      startSmartNotifications();
-    };
-    label.appendChild(check);
-    label.appendChild(document.createTextNode(SMART_DAY_NAMES[i]));
-    const time = document.createElement('input');
-    time.type = 'time';
-    time.value = pref.time || DEFAULT_WORKOUT_TIME;
-    time.onchange = ()=>{
-      notificationPrefs.workoutSchedule[String(i)].time = time.value || DEFAULT_WORKOUT_TIME;
-      syncToCloud();
-      renderNotifications();
-      startSmartNotifications();
-    };
-    row.appendChild(label);
-    row.appendChild(time);
-    grid.appendChild(row);
-  }
-}
-
 function renderNotifications(){
   const status = document.getElementById('notifyStatus');
   if(!status) return;
@@ -2527,17 +2452,19 @@ function renderNotifications(){
   document.getElementById('hydrationCopy').textContent = `${ACTIVITY_LEVELS[notificationPrefs.activityLevel].label}; target calculated from ${Math.round(latestWeightKg())} kg and ${profile.heightCm || 170} cm.`;
   document.getElementById('hydrationNextHint').textContent = hydrationReminderPlan().label;
 
-  document.getElementById('workoutLeadSelect').value = String(notificationPrefs.workoutLeadMinutes);
   const workoutPlan = workoutReminderPlan();
   document.getElementById('workoutNextHint').textContent = workoutPlan.label;
-  const next = scheduledWorkoutForDate(new Date());
-  document.getElementById('workoutCopy').textContent = next
-    ? `${next.label} at ${timeLabel(next.at)} today.`
-    : "No workout scheduled today.";
+  const confirmedToday = todayAttendanceConfirmed();
+  const loggedToday = hasAnyLog(getTodayKey());
+  document.getElementById('workoutCopy').textContent = (confirmedToday || loggedToday)
+    ? "Attendance confirmed for today. No more reminders."
+    : "Reminders at 9 AM, 12 PM, 3 PM, 6 PM, 9 PM.";
+  const attendanceBtn = document.getElementById('attendanceYesBtn');
+  attendanceBtn.disabled = confirmedToday || loggedToday;
+  attendanceBtn.textContent = (confirmedToday || loggedToday) ? "✓ Attendance confirmed today" : "✓ I went today";
   document.getElementById('notifyEngineCopy').textContent = notificationPrefs.enabled
     ? "Active. Reminders adapt to hydration progress, workout streaks, missed sessions, and recovery."
     : "Paused. Enable to use browser and in-app reminders.";
-  renderWorkoutScheduleGrid();
 }
 
 document.getElementById('notifyToggleBtn').onclick = async ()=>{
@@ -2585,12 +2512,7 @@ document.getElementById('activityLevelSelect').onchange = (e)=>{
   renderNotifications();
   startSmartNotifications();
 };
-document.getElementById('workoutLeadSelect').onchange = (e)=>{
-  notificationPrefs.workoutLeadMinutes = parseInt(e.target.value, 10) || 30;
-  syncToCloud();
-  renderNotifications();
-  startSmartNotifications();
-};
+document.getElementById('attendanceYesBtn').onclick = confirmWorkoutAttendance;
 document.getElementById('water250Btn').onclick = ()=>logWater(250);
 document.getElementById('water500Btn').onclick = ()=>logWater(500);
 document.getElementById('waterSnoozeBtn').onclick = ()=>snoozeHydration(30);
