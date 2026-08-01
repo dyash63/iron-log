@@ -2341,17 +2341,25 @@ function showSmartReminder(id, title, body, actions){
 }
 
 async function requestSmartNotificationPermission(){
-  if(!("Notification" in window)){
-    showToast("In-app reminders enabled");
+  if(!window.isSecureContext){
+    console.warn("IronLog notifications: blocked — not a secure context (page must be served over https, or from localhost).");
+    showToast("Notifications need https — open the deployed site, not a local file");
     return false;
   }
+  if(!("Notification" in window)){
+    console.warn("IronLog notifications: the Notification API is not available in this browser.");
+    showToast("This browser doesn't support notifications");
+    return false;
+  }
+  console.log("IronLog notifications: current permission is", Notification.permission);
   if(Notification.permission === "granted") return true;
   if(Notification.permission === "denied"){
-    showToast("Browser notifications are blocked");
+    showToast("Notifications are blocked — reset the site's permission in your browser's address-bar settings, then try again");
     return false;
   }
   try{
     const result = await Notification.requestPermission();
+    console.log("IronLog notifications: requestPermission resolved to", result);
     return result === "granted";
   }catch(e){
     console.error("Notification permission error:", e);
@@ -2551,22 +2559,22 @@ document.getElementById('notifyToggleBtn').onclick = async ()=>{
 
 document.getElementById('waterNotifyToggle').onclick = async ()=>{
   notificationPrefs.waterEnabled = !notificationPrefs.waterEnabled;
-  if(notificationPrefs.waterEnabled){
-    notificationPrefs.enabled = true;
-    const nativeGranted = await requestSmartNotificationPermission();
-    showToast(nativeGranted ? "Water reminders enabled" : "In-app water reminders enabled");
-  }
+  notificationPrefs.enabled = true;
+  const nativeGranted = await requestSmartNotificationPermission();
+  showToast(notificationPrefs.waterEnabled
+    ? (nativeGranted ? "Water reminders enabled" : "In-app water reminders enabled")
+    : "Water reminders off");
   syncToCloud();
   renderNotifications();
   startSmartNotifications();
 };
 document.getElementById('workoutNotifyToggle').onclick = async ()=>{
   notificationPrefs.workoutEnabled = !notificationPrefs.workoutEnabled;
-  if(notificationPrefs.workoutEnabled){
-    notificationPrefs.enabled = true;
-    const nativeGranted = await requestSmartNotificationPermission();
-    showToast(nativeGranted ? "Workout reminders enabled" : "In-app workout reminders enabled");
-  }
+  notificationPrefs.enabled = true;
+  const nativeGranted = await requestSmartNotificationPermission();
+  showToast(notificationPrefs.workoutEnabled
+    ? (nativeGranted ? "Workout reminders enabled" : "In-app workout reminders enabled")
+    : "Workout reminders off");
   syncToCloud();
   renderNotifications();
   startSmartNotifications();
