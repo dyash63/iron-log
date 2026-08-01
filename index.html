@@ -2549,14 +2549,24 @@ document.getElementById('notifyToggleBtn').onclick = async ()=>{
   showToast(nativeGranted ? "Smart notifications enabled" : "In-app reminders enabled");
 };
 
-document.getElementById('waterNotifyToggle').onclick = ()=>{
+document.getElementById('waterNotifyToggle').onclick = async ()=>{
   notificationPrefs.waterEnabled = !notificationPrefs.waterEnabled;
+  if(notificationPrefs.waterEnabled){
+    notificationPrefs.enabled = true;
+    const nativeGranted = await requestSmartNotificationPermission();
+    showToast(nativeGranted ? "Water reminders enabled" : "In-app water reminders enabled");
+  }
   syncToCloud();
   renderNotifications();
   startSmartNotifications();
 };
-document.getElementById('workoutNotifyToggle').onclick = ()=>{
+document.getElementById('workoutNotifyToggle').onclick = async ()=>{
   notificationPrefs.workoutEnabled = !notificationPrefs.workoutEnabled;
+  if(notificationPrefs.workoutEnabled){
+    notificationPrefs.enabled = true;
+    const nativeGranted = await requestSmartNotificationPermission();
+    showToast(nativeGranted ? "Workout reminders enabled" : "In-app workout reminders enabled");
+  }
   syncToCloud();
   renderNotifications();
   startSmartNotifications();
