@@ -363,6 +363,7 @@
     z-index:2000;padding:20px;
   }
   .modal-overlay.hidden{display:none;}
+  .hidden{display:none !important;}
   .modal-box{
     background:var(--surface);border:1px solid var(--border);border-radius:14px;
     padding:24px 22px;max-width:360px;width:100%;
@@ -481,6 +482,22 @@
     <div class="modal-field">
       <label>Height (cm)</label>
       <input type="number" id="onboardHeight" inputmode="decimal" placeholder="e.g. 178">
+    </div>
+    <div id="onboardIdentityFields" class="hidden">
+      <div class="modal-sub" style="margin-top:6px;">These three are one-time — you can't change them after saving. Your gym name can always be edited later.</div>
+      <div class="modal-field">
+        <label>Name</label>
+        <input type="text" id="onboardName" placeholder="Your name">
+      </div>
+      <div class="modal-field">
+        <label>Username</label>
+        <input type="text" id="onboardUsername" placeholder="e.g. ironyash" maxlength="20">
+        <div class="hint" id="onboardUsernameStatus">3–20 characters: letters, numbers, underscore.</div>
+      </div>
+      <div class="modal-field">
+        <label>Country</label>
+        <select id="onboardCountry"></select>
+      </div>
     </div>
     <button class="finish-btn" id="onboardSaveBtn" style="margin:4px 0 0;">Save & Continue</button>
     <div class="modal-skip" id="onboardSkipBtn">Skip for now</div>
@@ -649,15 +666,16 @@
 
     <div class="card">
       <div class="card-head"><div class="card-title">Public Profile</div></div>
-      <div class="hint" style="margin-bottom:10px;">Shown on your shared workout images. All fields are optional.</div>
+      <div class="hint" style="margin-bottom:10px;">Shown on your shared workout images.</div>
+      <div class="hint hidden" id="identityLockedHint" style="margin-bottom:10px;color:#FF5C39;">🔒 Name, username, and country are locked and can't be changed.</div>
       <input type="text" class="num" id="profNameInput" placeholder="Your name" style="width:100%;margin-bottom:10px;" maxlength="60">
       <div class="weight-log-row" style="margin-bottom:4px;">
         <input type="text" class="num" id="profUsernameInput" placeholder="Username (e.g. ironyash)" maxlength="20">
-        <button class="add-exercise-btn" id="profUsernameSaveBtn" style="width:auto;padding:0 16px;">Save</button>
+        <select class="num" id="profCountryInput" style="max-width:150px;"></select>
       </div>
-      <div class="hint" id="profUsernameStatus">3–20 characters: letters, numbers, underscore.</div>
-      <input type="text" class="num" id="profGymInput" placeholder="Gym name (optional)" style="width:100%;margin:10px 0;" maxlength="60">
-      <select class="num" id="profCountryInput" style="width:100%;"></select>
+      <div class="hint" id="profUsernameStatus">3–20 characters: letters, numbers, underscore. Name, username, and country can only be set once.</div>
+      <button class="add-exercise-btn" id="profUsernameSaveBtn" style="width:100%;margin:10px 0;">Save (one-time)</button>
+      <input type="text" class="num" id="profGymInput" placeholder="Gym name (optional, always editable)" style="width:100%;" maxlength="60">
     </div>
 
     <div class="card">
@@ -1115,6 +1133,7 @@ async function loadFromCloud() {
   if (!user) return;
   try {
     const doc = await db.collection("users").doc(user.uid).get();
+    isNewSignup = !doc.exists;
     if (doc.exists) {
       const data = doc.data();
       if (data.logs) { logs = data.logs; saveLogsLocal(logs); }
@@ -1138,6 +1157,7 @@ function dateKey(d){ return d.toISOString().slice(0,10); }
 
 let selectedDate = new Date();
 let today = new Date();
+let isNewSignup = false;
 
 function ensureDateEntry(key){
   if(!logs[key]){
@@ -1149,15 +1169,26 @@ function ensureDateEntry(key){
 /* ---------- ONBOARDING ---------- */
 function maybeShowOnboarding(){
   const modal = document.getElementById('onboardModal');
-  if(profile.weightKg && profile.heightCm){
+  const needsBasics = !(profile.weightKg && profile.heightCm);
+  const needsIdentity = isNewSignup && !profile.identityLocked;
+  if(!needsBasics && !needsIdentity){
     modal.classList.add('hidden');
     return;
   }
   document.getElementById('onboardWeight').value = profile.weightKg || '';
   document.getElementById('onboardHeight').value = profile.heightCm || '';
+  const idBlock = document.getElementById('onboardIdentityFields');
+  idBlock.classList.toggle('hidden', !needsIdentity);
+  if(needsIdentity){
+    document.getElementById('onboardName').value = profile.name || '';
+    document.getElementById('onboardUsername').value = profile.username || '';
+    populateCountrySelect(document.getElementById('onboardCountry'));
+    document.getElementById('onboardCountry').value = profile.country || '';
+    document.getElementById('onboardUsernameStatus').textContent = "3–20 characters: letters, numbers, underscore.";
+  }
   modal.classList.remove('hidden');
 }
-document.getElementById('onboardSaveBtn').onclick = ()=>{
+document.getElementById('onboardSaveBtn').onclick = async ()=>{
   const w = parseFloat(document.getElementById('onboardWeight').value);
   const h = parseFloat(document.getElementById('onboardHeight').value);
   if(!isNaN(w)) profile.weightKg = w;
@@ -1166,7 +1197,18 @@ document.getElementById('onboardSaveBtn').onclick = ()=>{
     const key = dateKey(new Date());
     weightLog[key] = w;
   }
-  syncToCloud();
+  const idBlock = document.getElementById('onboardIdentityFields');
+  if(!idBlock.classList.contains('hidden')){
+    const ok = await saveIdentityOnce(
+      document.getElementById('onboardName').value,
+      document.getElementById('onboardUsername').value,
+      document.getElementById('onboardCountry').value,
+      document.getElementById('onboardUsernameStatus')
+    );
+    if(!ok) { syncToCloud(); return; } // keep modal open so they can fix the username
+  } else {
+    syncToCloud();
+  }
   document.getElementById('onboardModal').classList.add('hidden');
   renderProfile();
   showToast("Profile saved");
@@ -2079,11 +2121,12 @@ function minsUntilLabel(d){
 
 function ensureHydrationEntry(key=getTodayKey()){
   if(!hydrationLog[key]){
-    hydrationLog[key] = { amountMl:0, events:[], skipped:false, snoozedUntil:null, lastReminderAt:null };
+    hydrationLog[key] = { amountMl:0, events:[], skipped:false, snoozedUntil:null, lastReminderAt:null, firedStages:{} };
   }
   const entry = hydrationLog[key];
   if(typeof entry.amountMl !== 'number') entry.amountMl = 0;
   if(!Array.isArray(entry.events)) entry.events = [];
+  if(!entry.firedStages) entry.firedStages = {};
   return entry;
 }
 
@@ -2116,21 +2159,13 @@ function hydrationProgress(key=getTodayKey()){
   return { target, logged, remaining, ratio: target ? clampNumber(logged / target, 0, 1) : 0, entry };
 }
 
-function hydrationCadenceMinutes(now=new Date()){
-  const progress = hydrationProgress();
-  if(progress.remaining <= 0) return null;
-  const minutesNow = now.getHours() * 60 + now.getMinutes();
-  const minutesLeft = (22 * 60) - minutesNow;
-  if(minutesLeft <= 0) return null;
-  const mlPerHourNeeded = progress.remaining / Math.max(minutesLeft / 60, 1);
-  let cadence = 120;
-  if(mlPerHourNeeded > 450) cadence = 45;
-  else if(mlPerHourNeeded > 300) cadence = 60;
-  else if(mlPerHourNeeded > 180) cadence = 90;
-  if(progress.ratio < .35 && now.getHours() >= 14) cadence = Math.min(cadence, 60);
-  if(progress.ratio < .55 && now.getHours() >= 18) cadence = Math.min(cadence, 45);
-  if(progress.ratio > .85) cadence = 150;
-  return cadence;
+const WATER_REMINDER_SLOTS = [[8,0],[9,30],[11,0],[12,30],[14,0],[15,30],[17,0],[18,30],[20,0],[21,30]];
+
+function waterReminderStagesForToday(now=new Date()){
+  return WATER_REMINDER_SLOTS.map(([h,m]) => ({
+    id: `${h}_${m}`,
+    at: new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0)
+  }));
 }
 
 function hydrationReminderPlan(now=new Date()){
@@ -2138,21 +2173,19 @@ function hydrationReminderPlan(now=new Date()){
   const progress = hydrationProgress();
   if(progress.remaining <= 0) return { active:false, label:"Hydration goal complete for today." };
   if(progress.entry.skipped) return { active:false, label:"Water reminders skipped for today." };
-  if(now.getHours() < 8 || now.getHours() >= 22) return { active:false, label:"Hydration reminders start at 8:00 AM." };
   const snoozedUntil = progress.entry.snoozedUntil ? new Date(progress.entry.snoozedUntil) : null;
   if(snoozedUntil && snoozedUntil > now) return { active:true, due:false, nextAt:snoozedUntil, label:`Snoozed until ${timeLabel(snoozedUntil)}.` };
-  const cadence = hydrationCadenceMinutes(now);
-  if(!cadence) return { active:false, label:"Hydration reminders are paused for the night." };
-  const lastAt = progress.entry.lastReminderAt ? new Date(progress.entry.lastReminderAt) : null;
-  const nextAt = lastAt ? new Date(lastAt.getTime() + cadence * 60000) : now;
-  return {
-    active:true,
-    due: now >= nextAt,
-    nextAt,
-    cadence,
-    progress,
-    label: now >= nextAt ? "Hydration reminder ready now." : `Next water reminder in ${minsUntilLabel(nextAt)}.`
-  };
+  const stages = waterReminderStagesForToday(now);
+  const fired = progress.entry.firedStages || {};
+  for(let i=stages.length-1;i>=0;i--){
+    const stage = stages[i];
+    if(now >= stage.at && !fired[stage.id]){
+      return { active:true, due:true, stage, progress, label:"Hydration reminder ready now." };
+    }
+  }
+  const nextStage = stages.find(stage => !fired[stage.id] && now < stage.at);
+  if(nextStage) return { active:true, due:false, nextAt:nextStage.at, label:`Next water reminder at ${timeLabel(nextStage.at)}.` };
+  return { active:false, label:"All 10 water reminders sent for today." };
 }
 
 function logWater(amountMl){
@@ -2369,10 +2402,10 @@ function sendSmartNotification(id, title, body, actions){
   }
 }
 
-function fireHydrationReminder(){
+function fireHydrationReminder(plan){
   const progress = hydrationProgress();
   const entry = progress.entry;
-  entry.lastReminderAt = new Date().toISOString();
+  entry.firedStages[plan.stage.id] = new Date().toISOString();
   syncToCloud();
   sendSmartNotification(
     "hydration",
@@ -2431,7 +2464,7 @@ function fireWorkoutReminder(plan){
 function runSmartNotificationCheck(){
   if(!notificationPrefs.enabled) return;
   const hydrationPlan = hydrationReminderPlan();
-  if(hydrationPlan.due) fireHydrationReminder();
+  if(hydrationPlan.due) fireHydrationReminder(hydrationPlan);
   const workoutPlan = workoutReminderPlan();
   if(workoutPlan.due) fireWorkoutReminder(workoutPlan);
   renderNotifications();
@@ -2565,6 +2598,14 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) runSmar
 window.addEventListener('focus', ()=>{ runSmartNotificationCheck(); });
 
 /* ---------- PROFILE VIEW ---------- */
+function populateCountrySelect(selectEl, placeholder="Select country (optional)"){
+  if(selectEl.dataset.populated) return;
+  let opts = `<option value="">${placeholder}</option>`;
+  COUNTRIES.forEach(c=>{ opts += `<option value="${c}">${c}</option>`; });
+  selectEl.innerHTML = opts;
+  selectEl.dataset.populated = "1";
+}
+
 function renderProfile(){
   const wInput = document.getElementById('profWeightInput');
   const hInput = document.getElementById('profHeightInput');
@@ -2577,16 +2618,23 @@ function renderProfile(){
   const usernameInput = document.getElementById('profUsernameInput');
   const gymInput = document.getElementById('profGymInput');
   const countryInput = document.getElementById('profCountryInput');
-  if(!countryInput.dataset.populated){
-    let opts = '<option value="">Select country (optional)</option>';
-    COUNTRIES.forEach(c=>{ opts += `<option value="${c}">${c}</option>`; });
-    countryInput.innerHTML = opts;
-    countryInput.dataset.populated = "1";
-  }
+  const saveBtn = document.getElementById('profUsernameSaveBtn');
+  const lockedHint = document.getElementById('identityLockedHint');
+
+  populateCountrySelect(countryInput);
   countryInput.value = profile.country || '';
   if(document.activeElement !== nameInput) nameInput.value = profile.name || '';
   if(document.activeElement !== usernameInput) usernameInput.value = profile.username || '';
   if(document.activeElement !== gymInput) gymInput.value = profile.gymName || '';
+
+  const locked = !!profile.identityLocked;
+  nameInput.disabled = locked;
+  usernameInput.disabled = locked;
+  countryInput.disabled = locked;
+  saveBtn.disabled = locked;
+  saveBtn.classList.toggle('hidden', locked);
+  lockedHint.classList.toggle('hidden', !locked);
+  document.getElementById('profUsernameStatus').classList.toggle('hidden', locked);
 
   const overview = document.getElementById('splitOverview');
   overview.innerHTML = "";
@@ -2621,16 +2669,8 @@ document.getElementById('profHeightInput').oninput = (e)=>{
   syncToCloud();
 };
 
-document.getElementById('profNameInput').oninput = (e)=>{
-  profile.name = e.target.value.trim() || null;
-  syncToCloud();
-};
 document.getElementById('profGymInput').oninput = (e)=>{
   profile.gymName = e.target.value.trim() || null;
-  syncToCloud();
-};
-document.getElementById('profCountryInput').onchange = (e)=>{
-  profile.country = e.target.value || null;
   syncToCloud();
 };
 
@@ -2638,62 +2678,64 @@ function isValidUsername(u){
   return /^[a-zA-Z0-9_]{3,20}$/.test(u);
 }
 
-async function saveUsername(){
-  const statusEl = document.getElementById('profUsernameStatus');
-  const input = document.getElementById('profUsernameInput');
-  const value = input.value.trim();
+/* Saves Name + Username + Country together as a single one-time action.
+   Once saved, profile.identityLocked is set and these three fields can
+   never be edited again (Gym Name remains editable separately). */
+async function saveIdentityOnce(nameVal, usernameVal, countryVal, statusEl){
+  const name = (nameVal || '').trim();
+  const username = (usernameVal || '').trim();
+  const country = countryVal || '';
   const user = firebase.auth().currentUser;
 
-  if(!value){
-    profile.username = null;
-    syncToCloud();
-    statusEl.textContent = "3–20 characters: letters, numbers, underscore.";
-    statusEl.style.color = '';
-    return;
-  }
-  if(!isValidUsername(value)){
-    statusEl.textContent = "Only letters, numbers, and underscore — 3 to 20 characters.";
+  if(username && !isValidUsername(username)){
+    statusEl.textContent = "Username: only letters, numbers, underscore — 3 to 20 characters.";
     statusEl.style.color = '#FF5C39';
-    return;
+    return false;
   }
-  if(!user){
-    statusEl.textContent = "Sign in to claim a username.";
-    statusEl.style.color = '#FF5C39';
-    return;
-  }
-  const lower = value.toLowerCase();
-  const currentLower = (profile.username || '').toLowerCase();
-  if(lower === currentLower){
-    statusEl.textContent = "This is already your username.";
-    statusEl.style.color = '';
-    return;
-  }
-  statusEl.textContent = "Checking availability...";
-  statusEl.style.color = '';
-  try{
-    const docRef = db.collection('usernames').doc(lower);
-    const existing = await docRef.get();
-    if(existing.exists && existing.data().uid !== user.uid){
-      statusEl.textContent = "That username is taken — try another.";
+  if(username){
+    if(!user){
+      statusEl.textContent = "Sign in to claim a username.";
       statusEl.style.color = '#FF5C39';
-      return;
+      return false;
     }
-    if(currentLower){
-      db.collection('usernames').doc(currentLower).delete().catch(()=>{});
+    statusEl.textContent = "Checking username availability...";
+    statusEl.style.color = '';
+    try{
+      const lower = username.toLowerCase();
+      const docRef = db.collection('usernames').doc(lower);
+      const existing = await docRef.get();
+      if(existing.exists && existing.data().uid !== user.uid){
+        statusEl.textContent = "That username is taken — try another.";
+        statusEl.style.color = '#FF5C39';
+        return false;
+      }
+      await docRef.set({ uid: user.uid, username: username });
+    }catch(e){
+      console.error("Username save error:", e);
+      statusEl.textContent = "Couldn't check availability — try again.";
+      statusEl.style.color = '#FF5C39';
+      return false;
     }
-    await docRef.set({ uid: user.uid, username: value });
-    profile.username = value;
-    syncToCloud();
-    renderProfile();
-    statusEl.textContent = "Username saved!";
-    statusEl.style.color = '#4ADE80';
-  }catch(e){
-    console.error("Username save error:", e);
-    statusEl.textContent = "Couldn't check availability — try again.";
-    statusEl.style.color = '#FF5C39';
   }
+  profile.name = name || null;
+  profile.username = username || null;
+  profile.country = country || null;
+  profile.identityLocked = true;
+  syncToCloud();
+  statusEl.textContent = "Saved — these details are now locked.";
+  statusEl.style.color = '#4ADE80';
+  return true;
 }
-document.getElementById('profUsernameSaveBtn').onclick = saveUsername;
+
+document.getElementById('profUsernameSaveBtn').onclick = async ()=>{
+  const ok = await saveIdentityOnce(
+    document.getElementById('profNameInput').value,
+    document.getElementById('profUsernameInput').value,
+    document.getElementById('profCountryInput').value,
+    document.getElementById('profUsernameStatus')
+  );
+  if(ok) renderProfile();
+};
 
 document.getElementById('logWeightBtn').onclick = ()=>{
   const input = document.getElementById('weightLogInput');
