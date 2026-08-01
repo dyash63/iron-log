@@ -675,6 +675,7 @@
             <div class="smart-sub" id="notifyEngineCopy">Hydration and workout nudges adapt to your logs.</div>
           </div>
           <button class="auth-btn" id="notifyToggleBtn" type="button">Enable</button>
+          <button class="auth-btn secondary" id="notifyResetBtn" type="button" style="margin-left:8px;">Reset Settings</button>
         </div>
 
         <div>
@@ -2334,7 +2335,7 @@ async function requestSmartNotificationPermission(){
 
 function sendSmartNotification(id, title, body, actions){
   showSmartReminder(id, title, body, actions);
-  if("Notification" in window && Notification.permission === "granted" && (document.hidden || !document.hasFocus())){
+  if("Notification" in window && Notification.permission === "granted"){
     try{
       const note = new Notification(title, { body, tag:`ironlog-${id}`, renotify:true });
       note.onclick = ()=>{
@@ -2483,6 +2484,28 @@ document.getElementById('notifyToggleBtn').onclick = async ()=>{
   startSmartNotifications();
   showToast(nativeGranted ? "Smart notifications enabled" : "In-app reminders enabled");
 };
+
+function resetNotificationSettings(){
+  const ok = window.confirm("Reset notification settings? This turns off reminders, clears today's snooze/skip/attendance status, and restores defaults. Your logged workouts and water amounts are kept.");
+  if(!ok) return;
+  stopSmartNotifications();
+  notificationPrefs = normalizeNotificationPrefs({});
+  saveNotifyPrefsLocal(notificationPrefs);
+  notificationState = {};
+  saveNotifyStateLocal(notificationState);
+  Object.keys(hydrationLog).forEach(key=>{
+    const entry = hydrationLog[key];
+    if(!entry) return;
+    entry.skipped = false;
+    entry.snoozedUntil = null;
+    entry.lastReminderAt = null;
+  });
+  saveHydrationLogLocal(hydrationLog);
+  syncToCloud();
+  renderNotifications();
+  showToast("Notification settings reset to defaults");
+}
+document.getElementById('notifyResetBtn').onclick = resetNotificationSettings;
 
 document.getElementById('waterNotifyToggle').onclick = async ()=>{
   notificationPrefs.waterEnabled = !notificationPrefs.waterEnabled;
