@@ -1153,7 +1153,12 @@ async function loadFromCloud() {
   }
 }
 
-function dateKey(d){ return d.toISOString().slice(0,10); }
+function dateKey(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 
 let selectedDate = new Date();
 let today = new Date();
@@ -1681,34 +1686,52 @@ function renderExerciseList(){
     body.innerHTML = buildExercisePreviewHTML(ex.group, ex.name);
     const grid = document.createElement('div');
     grid.className = 'sets-grid';
-    grid.innerHTML = `<div></div><div class="col-label">Weight (${unitLabel()})</div><div class="col-label">Reps done</div>`;
-    REP_SCHEME.forEach((target, i)=>{
+    if(ex.group === 'cardio'){
+      grid.innerHTML = `<div></div><div class="col-label">Duration (minutes)</div>`;
       const row1 = document.createElement('div');
       row1.className = 'set-label';
-      row1.innerHTML = `Set ${i+1}<br><b>×${target}</b>`;
-      const wInput = document.createElement('select');
-      wInput.className = 'num';
-      wInput.innerHTML = weightOptionsHTML();
-      const storedKg = ex.sets[i] && ex.sets[i].weight!=null ? ex.sets[i].weight : null;
-      wInput.value = storedKg!=null ? String(Math.round(toDisplayWeight(storedKg,0))) : '';
-      const rInput = document.createElement('select');
-      rInput.className = 'num';
-      rInput.innerHTML = NUM_OPTIONS_HTML;
-      rInput.value = ex.sets[i] && ex.sets[i].reps!=null ? String(ex.sets[i].reps) : '';
-
-      function persist(){
-        const wDisplay = parseFloat(wInput.value); const r = parseInt(rInput.value);
-        const w = isNaN(wDisplay) ? null : toKgFromDisplay(wDisplay);
-        ex.sets[i] = { weight: w, reps: isNaN(r)?null:r };
+      row1.innerHTML = `Session`;
+      const mInput = document.createElement('select');
+      mInput.className = 'num';
+      mInput.innerHTML = NUM_OPTIONS_HTML;
+      mInput.value = ex.sets[0] && ex.sets[0].minutes!=null ? String(ex.sets[0].minutes) : '';
+      mInput.onchange = ()=>{
+        const m = parseInt(mInput.value);
+        ex.sets[0] = { minutes: isNaN(m)?null:m };
         syncToCloud();
-      }
-      wInput.onchange = persist;
-      rInput.onchange = persist;
-
+      };
       grid.appendChild(row1);
-      grid.appendChild(wInput);
-      grid.appendChild(rInput);
-    });
+      grid.appendChild(mInput);
+    } else {
+      grid.innerHTML = `<div></div><div class="col-label">Weight (${unitLabel()})</div><div class="col-label">Reps done</div>`;
+      REP_SCHEME.forEach((target, i)=>{
+        const row1 = document.createElement('div');
+        row1.className = 'set-label';
+        row1.innerHTML = `Set ${i+1}<br><b>×${target}</b>`;
+        const wInput = document.createElement('select');
+        wInput.className = 'num';
+        wInput.innerHTML = weightOptionsHTML();
+        const storedKg = ex.sets[i] && ex.sets[i].weight!=null ? ex.sets[i].weight : null;
+        wInput.value = storedKg!=null ? String(Math.round(toDisplayWeight(storedKg,0))) : '';
+        const rInput = document.createElement('select');
+        rInput.className = 'num';
+        rInput.innerHTML = NUM_OPTIONS_HTML;
+        rInput.value = ex.sets[i] && ex.sets[i].reps!=null ? String(ex.sets[i].reps) : '';
+
+        function persist(){
+          const wDisplay = parseFloat(wInput.value); const r = parseInt(rInput.value);
+          const w = isNaN(wDisplay) ? null : toKgFromDisplay(wDisplay);
+          ex.sets[i] = { weight: w, reps: isNaN(r)?null:r };
+          syncToCloud();
+        }
+        wInput.onchange = persist;
+        rInput.onchange = persist;
+
+        grid.appendChild(row1);
+        grid.appendChild(wInput);
+        grid.appendChild(rInput);
+      });
+    }
     body.appendChild(grid);
 
     const rm = document.createElement('button');
@@ -1776,7 +1799,9 @@ function renderProgress(){
     const entry = logs[key];
     if(entry && entry.exercises){
       Object.values(entry.exercises).forEach(ex=>{
-        const anySet = ex.sets.some(s=>s && s.weight && s.reps);
+        const anySet = ex.group === 'cardio'
+          ? ex.sets.some(s=>s && s.minutes)
+          : ex.sets.some(s=>s && s.weight && s.reps);
         if(anySet) groupCount[ex.group] = (groupCount[ex.group]||0)+1;
       });
     }
@@ -2091,7 +2116,9 @@ function renderHistory(){
         body.appendChild(head);
         exIds.forEach(id=>{
           const ex = entry.exercises[id];
-          const setsStr = (ex.sets||[]).map(s=> s && s.weight && s.reps ? `${toDisplayWeight(s.weight,0)}${unitLabel()}×${s.reps}` : '—').join('  ·  ');
+          const setsStr = ex.group === 'cardio'
+            ? ((ex.sets && ex.sets[0] && ex.sets[0].minutes) ? `${ex.sets[0].minutes} min` : '—')
+            : (ex.sets||[]).map(s=> s && s.weight && s.reps ? `${toDisplayWeight(s.weight,0)}${unitLabel()}×${s.reps}` : '—').join('  ·  ');
           const row = document.createElement('div');
           row.className = 'hist-ex-row';
           row.innerHTML = `<b>${ex.name}</b><div class="hist-ex-sets">${setsStr}</div>`;
@@ -2907,12 +2934,20 @@ function buildShareCard(dateOverride){
     .map(f => ({ name: f.name, detail: finisherDetail(f, finisherBucket[f.id]) }));
 
   const exerciseRows = Object.values(entry.exercises||{}).map(ex=>{
+    if(ex.group === 'cardio'){
+      const mins = ex.sets && ex.sets[0] && ex.sets[0].minutes;
+      return { name: ex.name, detail: mins ? `${mins} min` : 'No duration logged' };
+    }
     const setsStr = (ex.sets||[]).filter(s=>s && s.weight && s.reps).map(s=>`${toDisplayWeight(s.weight,0)}${unitLabel()} × ${s.reps}`).join('   ·   ');
     return { name: ex.name, detail: setsStr || 'No sets logged' };
   });
 
   let vol = 0, setsCompleted = 0;
   Object.values(entry.exercises||{}).forEach(ex=>{
+    if(ex.group === 'cardio'){
+      (ex.sets||[]).forEach(s=>{ if(s && s.minutes) setsCompleted++; });
+      return;
+    }
     (ex.sets||[]).forEach(s=>{ if(s && s.weight && s.reps){ vol += s.weight*s.reps; setsCompleted++; } });
   });
 
