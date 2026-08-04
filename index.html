@@ -303,6 +303,42 @@
   .streak-best{margin-left:auto;text-align:right;}
   .streak-best .streak-num{font-size:20px;color:var(--text);}
 
+  /* COACH BODY MAP */
+  .coach-map-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:12px 0 8px;}
+  .coach-map-title{font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:.5px;}
+  .coach-figure-badge{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:4px 8px;text-transform:uppercase;letter-spacing:.45px;white-space:nowrap;}
+  .coach-body-layout{display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.86fr);gap:14px;align-items:center;margin-top:8px;}
+  .body-map-stage{min-height:260px;display:flex;align-items:center;justify-content:center;}
+  .body-figure{width:100%;max-width:330px;height:auto;display:block;}
+  .body-outline{fill:#20232a;stroke:#3b414d;stroke-width:2;}
+  .body-zone{stroke:#121316;stroke-width:2;transition:filter .15s ease,opacity .15s ease;}
+  .body-zone:hover{filter:brightness(1.15);}
+  .zone-neutral{fill:#343944;}
+  .zone-balanced{fill:#3ED598;}
+  .zone-needs-work{fill:#58A6FF;}
+  .zone-recovery{fill:#F7B955;}
+  .zone-overworked{fill:#FF5C39;}
+  .body-label{fill:var(--muted);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:.7px;}
+  .body-legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;}
+  .body-legend-item{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.35px;}
+  .body-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .body-status-list{display:grid;gap:8px;}
+  .body-status-row{display:grid;grid-template-columns:12px 88px 1fr;gap:7px;align-items:start;font-size:11.5px;line-height:1.35;}
+  .body-status-dot{width:10px;height:10px;border-radius:50%;margin-top:3px;}
+  .body-status-name{color:var(--text);font-weight:800;text-transform:uppercase;letter-spacing:.35px;}
+  .body-status-muscles{color:var(--muted);}
+  .coach-details{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;}
+  .coach-details summary{cursor:pointer;color:var(--text);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.45px;list-style:none;}
+  .coach-details summary::-webkit-details-marker{display:none;}
+  .coach-details summary::after{content:"+";float:right;color:var(--accent);font-size:18px;line-height:.75;}
+  .coach-details[open] summary::after{content:"–";}
+  .coach-detail-summary{margin:10px 0 8px;}
+  @media (max-width:620px){
+    .coach-body-layout{grid-template-columns:1fr;}
+    .body-map-stage{min-height:220px;}
+    .body-status-row{grid-template-columns:12px 82px 1fr;}
+  }
+
   /* HEATMAP */
   .heatmap-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .heatmap-nav{color:var(--muted);cursor:pointer;font-size:16px;padding:2px 8px;}
@@ -597,7 +633,30 @@
         <div class="stat-box"><div class="stat-num" id="coachScore">—</div><div class="stat-label">Today's Workout Score</div></div>
       </div>
       <div id="coachSummary" class="hint" style="margin-bottom:10px;"></div>
-      <div id="coachTips"></div>
+      <div class="coach-map-head">
+        <div>
+          <div class="coach-map-title">Weekly Body Map</div>
+          <div class="hint" id="coachBodyCopy">Loading muscle status…</div>
+        </div>
+        <div class="coach-figure-badge" id="coachFigureBadge">Male</div>
+      </div>
+      <div class="coach-body-layout">
+        <div>
+          <div class="body-map-stage" id="coachBodyMap"></div>
+          <div class="body-legend">
+            <div class="body-legend-item"><span class="body-swatch zone-overworked"></span>Overworked</div>
+            <div class="body-legend-item"><span class="body-swatch zone-recovery"></span>Recovery</div>
+            <div class="body-legend-item"><span class="body-swatch zone-needs-work"></span>Needs work</div>
+            <div class="body-legend-item"><span class="body-swatch zone-balanced"></span>Balanced</div>
+          </div>
+        </div>
+        <div class="body-status-list" id="coachBodyGroups"></div>
+      </div>
+      <details class="coach-details">
+        <summary>Detailed report</summary>
+        <div id="coachDetailedSummary" class="hint coach-detail-summary"></div>
+        <div id="coachTips"></div>
+      </details>
     </div>
 
     <div class="card" id="weeklyPlanCard">
@@ -700,6 +759,10 @@
       <div class="range-toggle" id="unitToggle">
         <div class="chip" data-unit="kg">Kilograms (kg)</div>
         <div class="chip" data-unit="lbs">Pounds (lbs)</div>
+      </div>
+      <div class="range-toggle" id="bodyFigureToggle">
+        <div class="chip" data-figure="male">Male</div>
+        <div class="chip" data-figure="female">Female</div>
       </div>
       <div class="stat-row">
         <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (<span id="weightUnitLabel">kg</span>)</div></div>
@@ -1083,6 +1146,7 @@ let notificationState = loadNotifyStateLocal();
 const KG_PER_LB = 0.45359237;
 function getUnit(){ return profile.units === 'lbs' ? 'lbs' : 'kg'; }
 function unitLabel(){ return getUnit(); }
+function getBodyFigure(){ return (profile.bodyFigure || profile.gender || profile.sex) === 'female' ? 'female' : 'male'; }
 function kgToLb(kg){ return kg / KG_PER_LB; }
 function lbToKg(lb){ return lb * KG_PER_LB; }
 function toDisplayWeight(kg, decimals=0){
@@ -1127,6 +1191,21 @@ function setWeightUnit(u){
 }
 document.querySelectorAll('#unitToggle .chip').forEach(chip=>{
   chip.onclick = ()=> setWeightUnit(chip.dataset.unit);
+});
+
+function applyBodyFigureToggle(){
+  document.querySelectorAll('#bodyFigureToggle .chip').forEach(chip=>{
+    chip.classList.toggle('on', chip.dataset.figure === getBodyFigure());
+  });
+}
+function setBodyFigure(figure){
+  profile.bodyFigure = figure === 'female' ? 'female' : 'male';
+  syncToCloud();
+  applyBodyFigureToggle();
+  renderCoach();
+}
+document.querySelectorAll('#bodyFigureToggle .chip').forEach(chip=>{
+  chip.onclick = ()=> setBodyFigure(chip.dataset.figure);
 });
 
 async function syncToCloud() {
@@ -1890,15 +1969,187 @@ function renderProgress(){
 }
 
 /* ---------- IRON INTELLIGENCE COACH ---------- */
+const COACH_BODY_GROUPS = ["chest","back","shoulders","biceps","triceps","forearms","abs","legs","glutes","calves"];
+const COACH_BODY_STATUS = {
+  overworked: { label:"Overworked", css:"zone-overworked" },
+  recovery: { label:"Recovery", css:"zone-recovery" },
+  "needs-work": { label:"Needs work", css:"zone-needs-work" },
+  balanced: { label:"Balanced", css:"zone-balanced" },
+  neutral: { label:"No data", css:"zone-neutral" }
+};
+const COACH_BODY_STATUS_ORDER = ["overworked","recovery","needs-work","balanced"];
+
+function coachBodyStatusFor(group, report){
+  const volume = report.volume && report.volume[group];
+  const recovery = report.recovery && report.recovery[group];
+  if(!volume) return "neutral";
+  if(volume.status === "overtrained") return "overworked";
+  if(volume.status === "high") return "recovery";
+  if(volume.status === "undertrained" || volume.status === "below-optimal") return "needs-work";
+  if(recovery && recovery.status !== "Fully Recovered") return "recovery";
+  if(volume.status === "optimal") return "balanced";
+  return "neutral";
+}
+
+function buildCoachBodyStatusMap(report){
+  const map = {};
+  COACH_BODY_GROUPS.forEach(group=>{ map[group] = coachBodyStatusFor(group, report); });
+  return map;
+}
+
+function coachBodyBuckets(statusMap){
+  const buckets = { overworked:[], recovery:[], "needs-work":[], balanced:[] };
+  Object.entries(statusMap).forEach(([group,status])=>{
+    if(buckets[status]) buckets[status].push(group);
+  });
+  return buckets;
+}
+
+function compactMuscleList(groups, max=3){
+  if(!groups || groups.length === 0) return "None";
+  const labels = groups.map(g=>GROUP_LABEL[g] || g);
+  const shown = labels.slice(0, max).join(", ");
+  return labels.length > max ? `${shown} +${labels.length - max} more` : shown;
+}
+
+function coachStatusTitle(group, statusMap, report){
+  const status = statusMap[group] || "neutral";
+  const volume = report.volume && report.volume[group];
+  const recovery = report.recovery && report.recovery[group];
+  const parts = [GROUP_LABEL[group] || group, COACH_BODY_STATUS[status].label];
+  if(volume) parts.push(`${volume.weeklySets} sets this week`);
+  if(recovery) parts.push(recovery.status);
+  return parts.join(" · ");
+}
+
+function coachBodyZone(group, statusMap, report, shapes){
+  const status = statusMap[group] || "neutral";
+  const meta = COACH_BODY_STATUS[status] || COACH_BODY_STATUS.neutral;
+  return `<g class="body-zone ${meta.css}"><title>${escapeHTML(coachStatusTitle(group, statusMap, report))}</title>${shapes}</g>`;
+}
+
+function buildCoachBodySvg(figure, statusMap, report){
+  const female = figure === "female";
+  const frontOutline = female
+    ? "M76 77 C86 70 124 70 134 77 C146 116 137 161 130 193 C144 224 137 295 126 326 L111 326 C107 279 104 245 105 211 L105 211 C103 245 100 279 96 326 L81 326 C70 295 63 224 78 193 C71 161 64 116 76 77 Z"
+    : "M66 77 C82 67 128 67 144 77 C153 116 140 161 132 190 C142 222 136 294 126 326 L110 326 C106 279 103 244 105 210 L105 210 C107 244 104 279 100 326 L84 326 C74 294 68 222 78 190 C70 161 57 116 66 77 Z";
+  const backOutline = female
+    ? "M286 77 C296 70 334 70 344 77 C356 116 347 161 340 193 C354 224 347 295 336 326 L321 326 C317 279 314 245 315 211 L315 211 C313 245 310 279 306 326 L291 326 C280 295 273 224 288 193 C281 161 274 116 286 77 Z"
+    : "M276 77 C292 67 338 67 354 77 C363 116 350 161 342 190 C352 222 346 294 336 326 L320 326 C316 279 313 244 315 210 L315 210 C317 244 314 279 310 326 L294 326 C284 294 278 222 288 190 C280 161 267 116 276 77 Z";
+  const frontChest = female
+    ? `<path d="M80 96 C90 86 102 87 105 101 C101 117 89 124 78 116 Z"/><path d="M130 96 C120 86 108 87 105 101 C109 117 121 124 132 116 Z"/>`
+    : `<path d="M76 92 C90 80 102 83 105 99 C99 117 85 122 73 113 Z"/><path d="M134 92 C120 80 108 83 105 99 C111 117 125 122 137 113 Z"/>`;
+  const frontAbs = female
+    ? `<path d="M91 124 C100 120 110 120 119 124 L123 181 C113 187 97 187 87 181 Z"/>`
+    : `<path d="M88 124 C99 119 111 119 122 124 L126 181 C114 188 96 188 84 181 Z"/>`;
+  const frontShoulders = female
+    ? `<path d="M55 86 C62 75 74 72 84 80 L78 108 C66 106 57 99 55 86 Z"/><path d="M155 86 C148 75 136 72 126 80 L132 108 C144 106 153 99 155 86 Z"/>`
+    : `<path d="M45 86 C56 72 70 70 82 80 L76 109 C62 106 50 99 45 86 Z"/><path d="M165 86 C154 72 140 70 128 80 L134 109 C148 106 160 99 165 86 Z"/>`;
+  const frontBiceps = female
+    ? `<path d="M55 105 C68 105 73 118 70 143 L56 143 C50 129 49 116 55 105 Z"/><path d="M155 105 C142 105 137 118 140 143 L154 143 C160 129 161 116 155 105 Z"/>`
+    : `<path d="M48 106 C63 105 70 119 67 145 L51 145 C44 130 42 116 48 106 Z"/><path d="M162 106 C147 105 140 119 143 145 L159 145 C166 130 168 116 162 106 Z"/>`;
+  const frontForearms = female
+    ? `<path d="M57 145 L70 145 L67 190 L55 190 C51 174 52 158 57 145 Z"/><path d="M153 145 L140 145 L143 190 L155 190 C159 174 158 158 153 145 Z"/>`
+    : `<path d="M52 147 L67 147 L64 193 L50 193 C45 176 46 160 52 147 Z"/><path d="M158 147 L143 147 L146 193 L160 193 C165 176 164 160 158 147 Z"/>`;
+  const frontLegs = female
+    ? `<path d="M79 198 C88 192 99 194 103 205 C102 237 99 267 95 288 L82 288 C74 250 71 219 79 198 Z"/><path d="M131 198 C122 192 111 194 107 205 C108 237 111 267 115 288 L128 288 C136 250 139 219 131 198 Z"/>`
+    : `<path d="M79 196 C90 190 101 193 104 206 C103 239 100 268 96 290 L82 290 C73 251 70 218 79 196 Z"/><path d="M131 196 C120 190 109 193 106 206 C107 239 110 268 114 290 L128 290 C137 251 140 218 131 196 Z"/>`;
+  const frontCalves = female
+    ? `<path d="M82 291 L95 291 L92 327 L81 327 C77 314 78 301 82 291 Z"/><path d="M128 291 L115 291 L118 327 L129 327 C133 314 132 301 128 291 Z"/>`
+    : `<path d="M82 292 L96 292 L93 327 L81 327 C77 314 78 301 82 292 Z"/><path d="M128 292 L114 292 L117 327 L129 327 C133 314 132 301 128 292 Z"/>`;
+  const backBack = female
+    ? `<path d="M289 93 C305 85 325 85 341 93 L334 177 C323 187 307 187 296 177 Z"/>`
+    : `<path d="M282 91 C302 82 328 82 348 91 L337 178 C324 188 306 188 293 178 Z"/>`;
+  const backShoulders = female
+    ? `<path d="M265 86 C272 75 284 72 294 80 L288 108 C276 106 267 99 265 86 Z"/><path d="M365 86 C358 75 346 72 336 80 L342 108 C354 106 363 99 365 86 Z"/>`
+    : `<path d="M255 86 C266 72 280 70 292 80 L286 109 C272 106 260 99 255 86 Z"/><path d="M375 86 C364 72 350 70 338 80 L344 109 C358 106 370 99 375 86 Z"/>`;
+  const backTriceps = female
+    ? `<path d="M265 106 C278 106 283 119 280 144 L266 144 C260 130 259 117 265 106 Z"/><path d="M365 106 C352 106 347 119 350 144 L364 144 C370 130 371 117 365 106 Z"/>`
+    : `<path d="M258 107 C273 106 280 120 277 146 L261 146 C254 131 252 117 258 107 Z"/><path d="M372 107 C357 106 350 120 353 146 L369 146 C376 131 378 117 372 107 Z"/>`;
+  const backForearms = female
+    ? `<path d="M267 146 L280 146 L277 191 L265 191 C261 175 262 159 267 146 Z"/><path d="M363 146 L350 146 L353 191 L365 191 C369 175 368 159 363 146 Z"/>`
+    : `<path d="M262 148 L277 148 L274 194 L260 194 C255 177 256 161 262 148 Z"/><path d="M368 148 L353 148 L356 194 L370 194 C375 177 374 161 368 148 Z"/>`;
+  const backGlutes = female
+    ? `<path d="M288 184 C300 176 312 180 315 196 C311 208 298 213 286 205 Z"/><path d="M342 184 C330 176 318 180 315 196 C319 208 332 213 344 205 Z"/>`
+    : `<path d="M290 184 C301 177 311 181 315 196 C310 207 299 211 288 204 Z"/><path d="M340 184 C329 177 319 181 315 196 C320 207 331 211 342 204 Z"/>`;
+  const backLegs = female
+    ? `<path d="M289 205 C298 199 309 201 313 211 C312 239 309 267 305 288 L292 288 C284 251 281 222 289 205 Z"/><path d="M341 205 C332 199 321 201 317 211 C318 239 321 267 325 288 L338 288 C346 251 349 222 341 205 Z"/>`
+    : `<path d="M289 204 C300 198 311 201 314 212 C313 240 310 268 306 290 L292 290 C283 252 280 221 289 204 Z"/><path d="M341 204 C330 198 319 201 316 212 C317 240 320 268 324 290 L338 290 C347 252 350 221 341 204 Z"/>`;
+  const backCalves = female
+    ? `<path d="M292 291 L305 291 L302 327 L291 327 C287 314 288 301 292 291 Z"/><path d="M338 291 L325 291 L328 327 L339 327 C343 314 342 301 338 291 Z"/>`
+    : `<path d="M292 292 L306 292 L303 327 L291 327 C287 314 288 301 292 292 Z"/><path d="M338 292 L324 292 L327 327 L339 327 C343 314 342 301 338 292 Z"/>`;
+
+  return `
+    <svg class="body-figure" viewBox="0 0 420 360" role="img" aria-label="${escapeAttr(figure)} body muscle status map">
+      <circle class="body-outline" cx="105" cy="38" r="${female ? 17 : 18}"></circle>
+      <path class="body-outline" d="${frontOutline}"></path>
+      <circle class="body-outline" cx="315" cy="38" r="${female ? 17 : 18}"></circle>
+      <path class="body-outline" d="${backOutline}"></path>
+      ${coachBodyZone("shoulders", statusMap, report, frontShoulders + backShoulders)}
+      ${coachBodyZone("chest", statusMap, report, frontChest)}
+      ${coachBodyZone("abs", statusMap, report, frontAbs)}
+      ${coachBodyZone("biceps", statusMap, report, frontBiceps)}
+      ${coachBodyZone("forearms", statusMap, report, frontForearms + backForearms)}
+      ${coachBodyZone("legs", statusMap, report, frontLegs + backLegs)}
+      ${coachBodyZone("calves", statusMap, report, frontCalves + backCalves)}
+      ${coachBodyZone("back", statusMap, report, backBack)}
+      ${coachBodyZone("triceps", statusMap, report, backTriceps)}
+      ${coachBodyZone("glutes", statusMap, report, backGlutes)}
+      <text x="105" y="348" text-anchor="middle" class="body-label">FRONT</text>
+      <text x="315" y="348" text-anchor="middle" class="body-label">BACK</text>
+    </svg>
+  `;
+}
+
+function renderCoachBodyGroups(container, buckets){
+  if(!container) return;
+  container.innerHTML = COACH_BODY_STATUS_ORDER.map(status=>{
+    const meta = COACH_BODY_STATUS[status];
+    return `
+      <div class="body-status-row">
+        <span class="body-status-dot ${meta.css}"></span>
+        <span class="body-status-name">${escapeHTML(meta.label)}</span>
+        <span class="body-status-muscles">${escapeHTML(compactMuscleList(buckets[status], 3))}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildCoachMapCopy(buckets){
+  const parts = [];
+  if(buckets.overworked.length) parts.push(`${compactMuscleList(buckets.overworked, 2)} overworked`);
+  if(buckets.recovery.length) parts.push(`${compactMuscleList(buckets.recovery, 2)} need recovery`);
+  if(buckets["needs-work"].length) parts.push(`${compactMuscleList(buckets["needs-work"], 2)} need work`);
+  return parts.length ? parts.join(". ") + "." : "No muscle flags right now; the week looks balanced.";
+}
+
+function buildCoachCompactSummary(report, buckets){
+  const sessions = report.consistency ? report.consistency.weeklyFrequency : 0;
+  const score = report.todayScore ? report.todayScore.score : 0;
+  const focus = buckets["needs-work"][0] || buckets.overworked[0] || buckets.recovery[0];
+  const todayLine = score > 0 ? `Today scored ${score}/100.` : `No completed work logged for today yet.`;
+  const focusLine = focus ? `Main focus: ${GROUP_LABEL[focus] || focus}.` : "Training balance looks good.";
+  return `${sessions} session(s) logged in the last 7 days. ${todayLine} ${focusLine}`;
+}
+
 function renderCoach(){
   const scoreEl = document.getElementById('coachScore');
   const summaryEl = document.getElementById('coachSummary');
   const tipsEl = document.getElementById('coachTips');
+  const detailedSummaryEl = document.getElementById('coachDetailedSummary');
+  const bodyMapEl = document.getElementById('coachBodyMap');
+  const bodyGroupsEl = document.getElementById('coachBodyGroups');
+  const bodyCopyEl = document.getElementById('coachBodyCopy');
+  const figureBadgeEl = document.getElementById('coachFigureBadge');
   if(!scoreEl || !summaryEl || !tipsEl) return;
 
   if(typeof IronIntelligenceEngine === 'undefined'){
     summaryEl.textContent = 'Coach engine failed to load (iron-intelligence-engine.js not found).';
     tipsEl.innerHTML = '';
+    if(bodyMapEl) bodyMapEl.innerHTML = '';
+    if(bodyGroupsEl) bodyGroupsEl.innerHTML = '';
+    if(bodyCopyEl) bodyCopyEl.textContent = '';
+    if(detailedSummaryEl) detailedSummaryEl.textContent = '';
     return;
   }
 
@@ -1909,13 +2160,22 @@ function renderCoach(){
   });
 
   scoreEl.textContent = report.todayScore.score;
-  summaryEl.textContent = report.coach.summary;
+  const statusMap = buildCoachBodyStatusMap(report);
+  const buckets = coachBodyBuckets(statusMap);
+  const figure = getBodyFigure();
+
+  summaryEl.textContent = buildCoachCompactSummary(report, buckets);
+  if(bodyCopyEl) bodyCopyEl.textContent = buildCoachMapCopy(buckets);
+  if(figureBadgeEl) figureBadgeEl.textContent = figure === "female" ? "Female" : "Male";
+  if(bodyMapEl) bodyMapEl.innerHTML = buildCoachBodySvg(figure, statusMap, report);
+  renderCoachBodyGroups(bodyGroupsEl, buckets);
+  if(detailedSummaryEl) detailedSummaryEl.textContent = report.coach.summary;
 
   tipsEl.innerHTML = '';
   if(report.coach.tips.length === 0){
     const row = document.createElement('div');
     row.className = 'plate-row';
-    row.innerHTML = `<div class="plate-date">✅ No flags right now — training looks balanced.</div>`;
+    row.innerHTML = `<div class="plate-date">No flags right now — training looks balanced.</div>`;
     tipsEl.appendChild(row);
   } else {
     report.coach.tips.forEach(tip=>{
@@ -2751,6 +3011,7 @@ function renderProfile(){
   if(document.activeElement !== hInput) hInput.value = profile.heightCm || '';
   updateBMI();
   applyUnitLabels();
+  applyBodyFigureToggle();
 
   const nameInput = document.getElementById('profNameInput');
   const usernameInput = document.getElementById('profUsernameInput');
@@ -3716,6 +3977,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
 /* ---------- MASTER RENDER & INIT ---------- */
 function renderAll(){
   applyUnitLabels();
+  applyBodyFigureToggle();
   renderHeader();
   renderDayStrip();
   renderGroupSelect();
