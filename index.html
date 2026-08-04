@@ -215,6 +215,8 @@
   .ex-preview-meta{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;line-height:1.4;margin-bottom:5px;}
   .ex-preview-meta span + span::before{content:"/";margin:0 6px;color:var(--border);}
   .ex-preview-cue{font-size:12px;line-height:1.45;color:var(--text);}
+  .ex-preview-intel{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px;}
+  .ex-preview-intel span{font-size:10px;font-weight:600;letter-spacing:.2px;padding:3px 7px;border-radius:20px;background:var(--surface);border:1px solid var(--border);color:var(--muted);}
   .ex-preview-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .video-link{display:inline-flex;align-items:center;color:var(--accent);font-size:11.5px;font-weight:700;text-decoration:none;text-transform:uppercase;letter-spacing:.4px;}
   .video-link:hover{text-decoration:underline;}
@@ -589,6 +591,21 @@
       </div>
     </div>
 
+    <div class="card" id="coachCard">
+      <div class="card-head"><div class="card-title">🧠 Iron Intelligence Coach</div></div>
+      <div id="coachScoreRow" class="stat-row" style="margin-bottom:10px;">
+        <div class="stat-box"><div class="stat-num" id="coachScore">—</div><div class="stat-label">Today's Workout Score</div></div>
+      </div>
+      <div id="coachSummary" class="hint" style="margin-bottom:10px;"></div>
+      <div id="coachTips"></div>
+    </div>
+
+    <div class="card" id="weeklyPlanCard">
+      <div class="card-head"><div class="card-title">📅 Suggested Workout Chart (Next 7 Days)</div></div>
+      <div id="weeklyPlanRationale" class="hint" style="margin-bottom:10px;"></div>
+      <div id="weeklyPlanChart"></div>
+    </div>
+
     <div class="range-toggle" id="progressRangeToggle">
       <div class="chip on" data-range="7">Last 7 days</div>
       <div class="chip" data-range="30">Last 30 days</div>
@@ -790,6 +807,8 @@
   <footer>Track it. See it grow.<br>Designed by <b>Yash Desai</b> (@desaix) · Support: <a href="mailto:dyash63@gmail.com" style="color:var(--muted);">dyash63@gmail.com</a></footer>
 </div>
 
+<script src="iron-intelligence-engine.js"></script>
+<script src="exercise-knowledge-base.js"></script>
 <script>
 /* ---------- FIREBASE CONFIGURATION & GOOGLE AUTH ---------- */
 const firebaseConfig = {
@@ -917,6 +936,14 @@ EXERCISE_DATA.forEach(ex=>{
   LIBRARY[ex.g].push(ex.n);
 });
 function getExerciseMeta(group, name){ return EXERCISE_META[exerciseMetaKey(group, name)] || null; }
+
+// Per-exercise intelligence layer (movement pattern, compound/isolation,
+// biomechanics, difficulty, fatigue, recovery, recommended sets/reps/rest,
+// strength/hypertrophy/endurance emphasis) — built once from the same
+// EXERCISE_DATA library, via the deterministic rule-based classifier in
+// exercise-knowledge-base.js.
+const EXERCISE_KB = (typeof IronExerciseKB !== 'undefined') ? IronExerciseKB.buildDatabase(EXERCISE_DATA) : {};
+function getExerciseIntel(group, name){ return EXERCISE_KB[exerciseMetaKey(group, name)] || null; }
 
 const DEFAULT_SPLIT = { // 0 = Sunday
   0: [],                    // rest
@@ -1562,6 +1589,7 @@ function exerciseFallbackSvg(group, name){
 }
 function buildExercisePreviewHTML(group, name, compact=false){
   const meta = getExerciseMeta(group, name) || {};
+  const intel = getExerciseIntel(group, name);
   const title = escapeHTML(name);
   const groupLabel = escapeHTML(GROUP_LABEL[group] || group || 'Exercise');
   const equipment = escapeHTML(meta.e || inferEquipment(name));
@@ -1571,6 +1599,17 @@ function buildExercisePreviewHTML(group, name, compact=false){
   const figure = meta.img
     ? `<div class="ex-figure"><img src="${escapeAttr(meta.img)}" alt="${title}" loading="lazy" onerror="this.parentElement.classList.add('img-failed')">${fallback}</div>`
     : `<div class="ex-figure">${exerciseFallbackSvg(group, name)}</div>`;
+  const intelChips = intel ? `
+    <div class="ex-preview-intel">
+      <span>${escapeHTML(intel.category.charAt(0).toUpperCase() + intel.category.slice(1))}</span>
+      <span>${escapeHTML(intel.biomechanics)}</span>
+      <span>${escapeHTML(intel.difficulty)}</span>
+      ${intel.recommendedSets && intel.recommendedReps ? `<span>${intel.recommendedSets[0]}-${intel.recommendedSets[1]} sets × ${intel.recommendedReps[0]}-${intel.recommendedReps[1]} reps</span>` : ''}
+      ${intel.repNote ? `<span>${escapeHTML(intel.repNote)}</span>` : ''}
+      ${intel.restSeconds ? `<span>Rest ${intel.restSeconds[0]}-${intel.restSeconds[1]}s</span>` : ''}
+      <span>Fatigue: ${escapeHTML(intel.fatigueRating)}</span>
+    </div>
+  ` : '';
   return `
     <div class="exercise-preview${compact ? ' compact' : ''}">
       ${figure}
@@ -1578,6 +1617,7 @@ function buildExercisePreviewHTML(group, name, compact=false){
         <div class="ex-preview-title">${title}</div>
         <div class="ex-preview-meta"><span>${groupLabel}</span><span>${equipment}</span>${muscles ? `<span>${muscles}</span>` : ''}</div>
         <div class="ex-preview-cue">${cue}</div>
+        ${intelChips}
         <div class="ex-preview-actions">${youtubeExerciseLinkHTML(group, name)}</div>
       </div>
     </div>
@@ -1846,6 +1886,77 @@ function renderProgress(){
   renderWeightChart();
   renderHeatmap();
   renderPRs();
+  renderCoach();
+}
+
+/* ---------- IRON INTELLIGENCE COACH ---------- */
+function renderCoach(){
+  const scoreEl = document.getElementById('coachScore');
+  const summaryEl = document.getElementById('coachSummary');
+  const tipsEl = document.getElementById('coachTips');
+  if(!scoreEl || !summaryEl || !tipsEl) return;
+
+  if(typeof IronIntelligenceEngine === 'undefined'){
+    summaryEl.textContent = 'Coach engine failed to load (iron-intelligence-engine.js not found).';
+    tipsEl.innerHTML = '';
+    return;
+  }
+
+  const report = IronIntelligenceEngine.generateReport(logs, {
+    asOf: today,
+    lookbackDays: currentRange >= 7 ? 7 : currentRange,
+    daysPerWeekTarget: 4
+  });
+
+  scoreEl.textContent = report.todayScore.score;
+  summaryEl.textContent = report.coach.summary;
+
+  tipsEl.innerHTML = '';
+  if(report.coach.tips.length === 0){
+    const row = document.createElement('div');
+    row.className = 'plate-row';
+    row.innerHTML = `<div class="plate-date">✅ No flags right now — training looks balanced.</div>`;
+    tipsEl.appendChild(row);
+  } else {
+    report.coach.tips.forEach(tip=>{
+      const row = document.createElement('div');
+      row.className = 'plate-row';
+      row.style.display = 'block';
+      row.textContent = '• ' + tip;
+      tipsEl.appendChild(row);
+    });
+  }
+
+  renderWeeklyPlanChart(report.weeklyPlan);
+}
+
+function renderWeeklyPlanChart(plan){
+  const rationaleEl = document.getElementById('weeklyPlanRationale');
+  const chartEl = document.getElementById('weeklyPlanChart');
+  if(!rationaleEl || !chartEl) return;
+  if(!plan){ rationaleEl.textContent = ''; chartEl.innerHTML = ''; return; }
+
+  rationaleEl.textContent = plan.rationale;
+  chartEl.innerHTML = '';
+
+  plan.chart.forEach(day=>{
+    const row = document.createElement('div');
+    row.className = 'hist-ex-row';
+    const dateLabel = new Date(day.date+'T00:00:00').toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+    let focusHtml;
+    if(day.type === 'rest'){
+      focusHtml = `<span style="color:var(--muted);">Rest day</span>`;
+    } else {
+      const groupLabels = day.focus.map(g=>{
+        const meta = IronIntelligenceEngine.MUSCLE_DB[g];
+        return meta ? meta.label : g;
+      }).join(' + ');
+      focusHtml = groupLabels;
+      if(day.cardioMinutes) focusHtml += ` <span style="color:var(--muted);">+ ${day.cardioMinutes} min cardio</span>`;
+    }
+    row.innerHTML = `<b>${dateLabel} (${day.day})</b><div style="margin-top:2px;">${focusHtml}</div>`;
+    chartEl.appendChild(row);
+  });
 }
 
 document.querySelectorAll('#progressRangeToggle .chip').forEach(chip=>{
