@@ -319,20 +319,39 @@
   .zone-recovery{fill:#F7B955;}
   .zone-overworked{fill:#FF5C39;}
   .body-label{fill:var(--muted);font-family:'Inter',sans-serif;font-size:12px;font-weight:700;letter-spacing:.7px;}
-  .body-legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;}
+  .body-legend{display:flex;flex-wrap:wrap;gap:9px;margin-top:8px;}
   .body-legend-item{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.35px;}
   .body-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
   .body-status-list{display:grid;gap:8px;}
   .body-status-row{display:grid;grid-template-columns:12px 88px 1fr;gap:7px;align-items:start;font-size:11.5px;line-height:1.35;}
-  .body-status-dot{width:10px;height:10px;border-radius:50%;margin-top:3px;}
+  .body-status-dot{width:10px;height:10px;border-radius:50%;margin-top:3px;flex-shrink:0;}
   .body-status-name{color:var(--text);font-weight:800;text-transform:uppercase;letter-spacing:.35px;}
   .body-status-muscles{color:var(--muted);}
+  /* zone-* classes above only define SVG `fill`; add matching backgrounds so
+     the legend dots and status-list dots (plain <span> elements) render too. */
+  .body-swatch.zone-neutral,.body-status-dot.zone-neutral{background:#343944;}
+  .body-swatch.zone-balanced,.body-status-dot.zone-balanced{background:#3ED598;}
+  .body-swatch.zone-needs-work,.body-status-dot.zone-needs-work{background:#58A6FF;}
+  .body-swatch.zone-recovery,.body-status-dot.zone-recovery{background:#F7B955;}
+  .body-swatch.zone-overworked,.body-status-dot.zone-overworked{background:#FF5C39;}
   .coach-details{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;}
   .coach-details summary{cursor:pointer;color:var(--text);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.45px;list-style:none;}
   .coach-details summary::-webkit-details-marker{display:none;}
   .coach-details summary::after{content:"+";float:right;color:var(--accent);font-size:18px;line-height:.75;}
   .coach-details[open] summary::after{content:"–";}
   .coach-detail-summary{margin:10px 0 8px;}
+  /* DETAILED REPORT TABLE */
+  .report-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .report-table th{text-align:left;color:var(--muted);font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:0 8px 6px;border-bottom:1px solid var(--border);}
+  .report-table td{padding:8px;vertical-align:top;border-bottom:1px solid var(--border);color:var(--text);line-height:1.4;}
+  .report-table tr:last-child td{border-bottom:none;}
+  .report-table td.rt-muscle{font-weight:700;white-space:nowrap;}
+  .rt-badge{display:inline-block;padding:2px 7px;border-radius:999px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.35px;white-space:nowrap;}
+  .rt-badge-under{background:#1c3350;color:#7db8ff;}
+  .rt-badge-over{background:#4a2318;color:#ff9776;}
+  .rt-badge-imbalance{background:#4a3a14;color:#f7c463;}
+  .rt-badge-info{background:#20232a;color:var(--muted);}
+  .report-empty{color:var(--muted);font-size:11.5px;padding:6px 0;}
   @media (max-width:620px){
     .coach-body-layout{grid-template-columns:1fr;}
     .body-map-stage{min-height:220px;}
@@ -2028,73 +2047,51 @@ function coachBodyZone(group, statusMap, report, shapes){
   return `<g class="body-zone ${meta.css}"><title>${escapeHTML(coachStatusTitle(group, statusMap, report))}</title>${shapes}</g>`;
 }
 
+// Builds one figure's worth of muscle-group paths (front OR back) around a
+// given horizontal center `cx`. `female` nudges shoulder/hip proportions
+// slightly narrower/wider so the two figure options read distinctly.
+function coachBodyRegions(cx, female){
+  const sh = female ? 37 : 42;     // shoulder cap outer reach
+  const hip = female ? 16 : 13;    // hip/leg-top flare (female = wider hips)
+  const waist = female ? 15 : 18;  // abs top width (female = slimmer waist)
+  return {
+    shoulders: `<path d="M ${cx-sh} 66 C ${cx-sh} 54 ${cx-28} 48 ${cx-16} 51 L ${cx-14} 70 C ${cx-24} 74 ${cx-(sh-6)} 74 ${cx-sh} 66 Z"/><path d="M ${cx+sh} 66 C ${cx+sh} 54 ${cx+28} 48 ${cx+16} 51 L ${cx+14} 70 C ${cx+24} 74 ${cx+(sh-6)} 74 ${cx+sh} 66 Z"/>`,
+    chest: `<path d="M ${cx-2} 57 C ${cx-7} 54 ${cx-19} 55 ${cx-25} 62 C ${cx-29} 69 ${cx-27} 79 ${cx-19} 84 C ${cx-11} 88 ${cx-2} 85 ${cx-2} 77 Z"/><path d="M ${cx+2} 57 C ${cx+7} 54 ${cx+19} 55 ${cx+25} 62 C ${cx+29} 69 ${cx+27} 79 ${cx+19} 84 C ${cx+11} 88 ${cx+2} 85 ${cx+2} 77 Z"/>`,
+    abs: `<path d="M ${cx-waist} 84 C ${cx-waist} 82 ${cx+waist} 82 ${cx+waist} 84 L ${cx+15} 128 C ${cx+17} 138 ${cx+15} 146 ${cx+13} 150 L ${cx-13} 150 C ${cx-15} 146 ${cx-17} 138 ${cx-15} 128 Z"/>`,
+    biceps: `<path d="M ${cx-44} 68 C ${cx-52} 70 ${cx-56} 80 ${cx-54} 96 L ${cx-52} 118 L ${cx-38} 118 L ${cx-38} 92 C ${cx-38} 82 ${cx-40} 74 ${cx-44} 68 Z"/><path d="M ${cx+44} 68 C ${cx+52} 70 ${cx+56} 80 ${cx+54} 96 L ${cx+52} 118 L ${cx+38} 118 L ${cx+38} 92 C ${cx+38} 82 ${cx+40} 74 ${cx+44} 68 Z"/>`,
+    triceps: `<path d="M ${cx-44} 68 C ${cx-52} 70 ${cx-56} 80 ${cx-54} 96 L ${cx-52} 118 L ${cx-38} 118 L ${cx-38} 92 C ${cx-38} 82 ${cx-40} 74 ${cx-44} 68 Z"/><path d="M ${cx+44} 68 C ${cx+52} 70 ${cx+56} 80 ${cx+54} 96 L ${cx+52} 118 L ${cx+38} 118 L ${cx+38} 92 C ${cx+38} 82 ${cx+40} 74 ${cx+44} 68 Z"/>`,
+    forearms: `<path d="M ${cx-52} 118 L ${cx-38} 118 L ${cx-36} 158 C ${cx-36} 164 ${cx-48} 164 ${cx-50} 158 Z"/><path d="M ${cx+52} 118 L ${cx+38} 118 L ${cx+36} 158 C ${cx+36} 164 ${cx+48} 164 ${cx+50} 158 Z"/>`,
+    back: `<path d="M ${cx} 56 C ${cx-16} 56 ${cx-24} 62 ${cx-24} 72 C ${cx-24} 90 ${cx-20} 108 ${cx-15} 122 C ${cx-9} 128 ${cx+9} 128 ${cx+15} 122 C ${cx+20} 108 ${cx+24} 90 ${cx+24} 72 C ${cx+24} 62 ${cx+16} 56 ${cx} 56 Z"/>`,
+    glutes: `<path d="M ${cx-15} 122 C ${cx-25} 124 ${cx-27} 134 ${cx-25} 144 C ${cx-22} 152 ${cx-11} 154 ${cx-2} 150 L ${cx-2} 124 C ${cx-6} 121 ${cx-11} 120 ${cx-15} 122 Z"/><path d="M ${cx+15} 122 C ${cx+25} 124 ${cx+27} 134 ${cx+25} 144 C ${cx+22} 152 ${cx+11} 154 ${cx+2} 150 L ${cx+2} 124 C ${cx+6} 121 ${cx+11} 120 ${cx+15} 122 Z"/>`,
+    legs: `<path d="M ${cx-13} 150 C ${cx-(13+hip)} 152 ${cx-(16+hip)} 162 ${cx-(15+hip)} 176 L ${cx-22} 232 L ${cx-6} 232 L ${cx-4} 176 C ${cx-4} 164 ${cx-6} 154 ${cx-13} 150 Z"/><path d="M ${cx+13} 150 C ${cx+(13+hip)} 152 ${cx+(16+hip)} 162 ${cx+(15+hip)} 176 L ${cx+22} 232 L ${cx+6} 232 L ${cx+4} 176 C ${cx+4} 164 ${cx+6} 154 ${cx+13} 150 Z"/>`,
+    calves: `<path d="M ${cx-22} 232 L ${cx-6} 232 L ${cx-7} 278 C ${cx-7} 286 ${cx-19} 286 ${cx-20} 278 Z"/><path d="M ${cx+22} 232 L ${cx+6} 232 L ${cx+7} 278 C ${cx+7} 286 ${cx+19} 286 ${cx+20} 278 Z"/>`,
+    outline: `<circle class="body-outline" cx="${cx}" cy="26" r="15"></circle><path class="body-outline" d="M ${cx-7} 39 L ${cx+7} 39 L ${cx+9} 50 L ${cx-9} 50 Z"></path><ellipse class="body-outline" cx="${cx-43}" cy="167" rx="7" ry="9"></ellipse><ellipse class="body-outline" cx="${cx+43}" cy="167" rx="7" ry="9"></ellipse><path class="body-outline" d="M ${cx-20} 278 L ${cx-7} 278 L ${cx-5} 288 L ${cx-24} 288 C ${cx-26} 284 ${cx-24} 280 ${cx-20} 278 Z"></path><path class="body-outline" d="M ${cx+20} 278 L ${cx+7} 278 L ${cx+5} 288 L ${cx+24} 288 C ${cx+26} 284 ${cx+24} 280 ${cx+20} 278 Z"></path>`
+  };
+}
+
 function buildCoachBodySvg(figure, statusMap, report){
   const female = figure === "female";
-  const frontOutline = female
-    ? "M76 77 C86 70 124 70 134 77 C146 116 137 161 130 193 C144 224 137 295 126 326 L111 326 C107 279 104 245 105 211 L105 211 C103 245 100 279 96 326 L81 326 C70 295 63 224 78 193 C71 161 64 116 76 77 Z"
-    : "M66 77 C82 67 128 67 144 77 C153 116 140 161 132 190 C142 222 136 294 126 326 L110 326 C106 279 103 244 105 210 L105 210 C107 244 104 279 100 326 L84 326 C74 294 68 222 78 190 C70 161 57 116 66 77 Z";
-  const backOutline = female
-    ? "M286 77 C296 70 334 70 344 77 C356 116 347 161 340 193 C354 224 347 295 336 326 L321 326 C317 279 314 245 315 211 L315 211 C313 245 310 279 306 326 L291 326 C280 295 273 224 288 193 C281 161 274 116 286 77 Z"
-    : "M276 77 C292 67 338 67 354 77 C363 116 350 161 342 190 C352 222 346 294 336 326 L320 326 C316 279 313 244 315 210 L315 210 C317 244 314 279 310 326 L294 326 C284 294 278 222 288 190 C280 161 267 116 276 77 Z";
-  const frontChest = female
-    ? `<path d="M80 96 C90 86 102 87 105 101 C101 117 89 124 78 116 Z"/><path d="M130 96 C120 86 108 87 105 101 C109 117 121 124 132 116 Z"/>`
-    : `<path d="M76 92 C90 80 102 83 105 99 C99 117 85 122 73 113 Z"/><path d="M134 92 C120 80 108 83 105 99 C111 117 125 122 137 113 Z"/>`;
-  const frontAbs = female
-    ? `<path d="M91 124 C100 120 110 120 119 124 L123 181 C113 187 97 187 87 181 Z"/>`
-    : `<path d="M88 124 C99 119 111 119 122 124 L126 181 C114 188 96 188 84 181 Z"/>`;
-  const frontShoulders = female
-    ? `<path d="M55 86 C62 75 74 72 84 80 L78 108 C66 106 57 99 55 86 Z"/><path d="M155 86 C148 75 136 72 126 80 L132 108 C144 106 153 99 155 86 Z"/>`
-    : `<path d="M45 86 C56 72 70 70 82 80 L76 109 C62 106 50 99 45 86 Z"/><path d="M165 86 C154 72 140 70 128 80 L134 109 C148 106 160 99 165 86 Z"/>`;
-  const frontBiceps = female
-    ? `<path d="M55 105 C68 105 73 118 70 143 L56 143 C50 129 49 116 55 105 Z"/><path d="M155 105 C142 105 137 118 140 143 L154 143 C160 129 161 116 155 105 Z"/>`
-    : `<path d="M48 106 C63 105 70 119 67 145 L51 145 C44 130 42 116 48 106 Z"/><path d="M162 106 C147 105 140 119 143 145 L159 145 C166 130 168 116 162 106 Z"/>`;
-  const frontForearms = female
-    ? `<path d="M57 145 L70 145 L67 190 L55 190 C51 174 52 158 57 145 Z"/><path d="M153 145 L140 145 L143 190 L155 190 C159 174 158 158 153 145 Z"/>`
-    : `<path d="M52 147 L67 147 L64 193 L50 193 C45 176 46 160 52 147 Z"/><path d="M158 147 L143 147 L146 193 L160 193 C165 176 164 160 158 147 Z"/>`;
-  const frontLegs = female
-    ? `<path d="M79 198 C88 192 99 194 103 205 C102 237 99 267 95 288 L82 288 C74 250 71 219 79 198 Z"/><path d="M131 198 C122 192 111 194 107 205 C108 237 111 267 115 288 L128 288 C136 250 139 219 131 198 Z"/>`
-    : `<path d="M79 196 C90 190 101 193 104 206 C103 239 100 268 96 290 L82 290 C73 251 70 218 79 196 Z"/><path d="M131 196 C120 190 109 193 106 206 C107 239 110 268 114 290 L128 290 C137 251 140 218 131 196 Z"/>`;
-  const frontCalves = female
-    ? `<path d="M82 291 L95 291 L92 327 L81 327 C77 314 78 301 82 291 Z"/><path d="M128 291 L115 291 L118 327 L129 327 C133 314 132 301 128 291 Z"/>`
-    : `<path d="M82 292 L96 292 L93 327 L81 327 C77 314 78 301 82 292 Z"/><path d="M128 292 L114 292 L117 327 L129 327 C133 314 132 301 128 292 Z"/>`;
-  const backBack = female
-    ? `<path d="M289 93 C305 85 325 85 341 93 L334 177 C323 187 307 187 296 177 Z"/>`
-    : `<path d="M282 91 C302 82 328 82 348 91 L337 178 C324 188 306 188 293 178 Z"/>`;
-  const backShoulders = female
-    ? `<path d="M265 86 C272 75 284 72 294 80 L288 108 C276 106 267 99 265 86 Z"/><path d="M365 86 C358 75 346 72 336 80 L342 108 C354 106 363 99 365 86 Z"/>`
-    : `<path d="M255 86 C266 72 280 70 292 80 L286 109 C272 106 260 99 255 86 Z"/><path d="M375 86 C364 72 350 70 338 80 L344 109 C358 106 370 99 375 86 Z"/>`;
-  const backTriceps = female
-    ? `<path d="M265 106 C278 106 283 119 280 144 L266 144 C260 130 259 117 265 106 Z"/><path d="M365 106 C352 106 347 119 350 144 L364 144 C370 130 371 117 365 106 Z"/>`
-    : `<path d="M258 107 C273 106 280 120 277 146 L261 146 C254 131 252 117 258 107 Z"/><path d="M372 107 C357 106 350 120 353 146 L369 146 C376 131 378 117 372 107 Z"/>`;
-  const backForearms = female
-    ? `<path d="M267 146 L280 146 L277 191 L265 191 C261 175 262 159 267 146 Z"/><path d="M363 146 L350 146 L353 191 L365 191 C369 175 368 159 363 146 Z"/>`
-    : `<path d="M262 148 L277 148 L274 194 L260 194 C255 177 256 161 262 148 Z"/><path d="M368 148 L353 148 L356 194 L370 194 C375 177 374 161 368 148 Z"/>`;
-  const backGlutes = female
-    ? `<path d="M288 184 C300 176 312 180 315 196 C311 208 298 213 286 205 Z"/><path d="M342 184 C330 176 318 180 315 196 C319 208 332 213 344 205 Z"/>`
-    : `<path d="M290 184 C301 177 311 181 315 196 C310 207 299 211 288 204 Z"/><path d="M340 184 C329 177 319 181 315 196 C320 207 331 211 342 204 Z"/>`;
-  const backLegs = female
-    ? `<path d="M289 205 C298 199 309 201 313 211 C312 239 309 267 305 288 L292 288 C284 251 281 222 289 205 Z"/><path d="M341 205 C332 199 321 201 317 211 C318 239 321 267 325 288 L338 288 C346 251 349 222 341 205 Z"/>`
-    : `<path d="M289 204 C300 198 311 201 314 212 C313 240 310 268 306 290 L292 290 C283 252 280 221 289 204 Z"/><path d="M341 204 C330 198 319 201 316 212 C317 240 320 268 324 290 L338 290 C347 252 350 221 341 204 Z"/>`;
-  const backCalves = female
-    ? `<path d="M292 291 L305 291 L302 327 L291 327 C287 314 288 301 292 291 Z"/><path d="M338 291 L325 291 L328 327 L339 327 C343 314 342 301 338 291 Z"/>`
-    : `<path d="M292 292 L306 292 L303 327 L291 327 C287 314 288 301 292 292 Z"/><path d="M338 292 L324 292 L327 327 L339 327 C343 314 342 301 338 292 Z"/>`;
+  const front = coachBodyRegions(105, female);
+  const back = coachBodyRegions(315, female);
 
   return `
     <svg class="body-figure" viewBox="0 0 420 360" role="img" aria-label="${escapeAttr(figure)} body muscle status map">
-      <circle class="body-outline" cx="105" cy="38" r="${female ? 17 : 18}"></circle>
-      <path class="body-outline" d="${frontOutline}"></path>
-      <circle class="body-outline" cx="315" cy="38" r="${female ? 17 : 18}"></circle>
-      <path class="body-outline" d="${backOutline}"></path>
-      ${coachBodyZone("shoulders", statusMap, report, frontShoulders + backShoulders)}
-      ${coachBodyZone("chest", statusMap, report, frontChest)}
-      ${coachBodyZone("abs", statusMap, report, frontAbs)}
-      ${coachBodyZone("biceps", statusMap, report, frontBiceps)}
-      ${coachBodyZone("forearms", statusMap, report, frontForearms + backForearms)}
-      ${coachBodyZone("legs", statusMap, report, frontLegs + backLegs)}
-      ${coachBodyZone("calves", statusMap, report, frontCalves + backCalves)}
-      ${coachBodyZone("back", statusMap, report, backBack)}
-      ${coachBodyZone("triceps", statusMap, report, backTriceps)}
-      ${coachBodyZone("glutes", statusMap, report, backGlutes)}
+      <!-- content is authored on a taller local grid, then scaled/centered
+           into the 420x360 canvas so proportions stay consistent -->
+      <g transform="translate(-31.5,2.35) scale(1.15)">
+        ${front.outline}
+        ${back.outline}
+        ${coachBodyZone("shoulders", statusMap, report, front.shoulders + back.shoulders)}
+        ${coachBodyZone("chest", statusMap, report, front.chest)}
+        ${coachBodyZone("abs", statusMap, report, front.abs)}
+        ${coachBodyZone("biceps", statusMap, report, front.biceps)}
+        ${coachBodyZone("forearms", statusMap, report, front.forearms + back.forearms)}
+        ${coachBodyZone("legs", statusMap, report, front.legs + back.legs)}
+        ${coachBodyZone("calves", statusMap, report, front.calves + back.calves)}
+        ${coachBodyZone("back", statusMap, report, back.back)}
+        ${coachBodyZone("triceps", statusMap, report, back.triceps)}
+        ${coachBodyZone("glutes", statusMap, report, back.glutes)}
+      </g>
       <text x="105" y="348" text-anchor="middle" class="body-label">FRONT</text>
       <text x="315" y="348" text-anchor="middle" class="body-label">BACK</text>
     </svg>
@@ -2130,6 +2127,63 @@ function buildCoachCompactSummary(report, buckets){
   const todayLine = score > 0 ? `Today scored ${score}/100.` : `No completed work logged for today yet.`;
   const focusLine = focus ? `Main focus: ${GROUP_LABEL[focus] || focus}.` : "Training balance looks good.";
   return `${sessions} session(s) logged in the last 7 days. ${todayLine} ${focusLine}`;
+}
+
+// Turns one plain-language coach tip string into structured {muscle, status,
+// badgeClass, detail} fields so it can render as a compact table row instead
+// of a wall of text. Falls back to a generic row for any phrasing it
+// doesn't recognize, so nothing is ever dropped.
+function parseCoachTip(tip){
+  let m;
+
+  if((m = tip.match(/^(.+?) is at (\d+) sets this week, below the (\d+)-(\d+) range\.\s*Add roughly (\d+) more working set/i))){
+    return { muscle: m[1], status: 'Under target', badge: 'rt-badge-under',
+      detail: `${m[2]} of ${m[3]}\u2013${m[4]} sets \u2014 add ~${m[5]} more` };
+  }
+  if((m = tip.match(/^Cardio sits at (\d+) min this week, under the general (\d+)-min\/week guideline/i))){
+    return { muscle: 'Cardio', status: 'Under target', badge: 'rt-badge-under',
+      detail: `${m[1]} of ${m[2]}+ min this week` };
+  }
+  if((m = tip.match(/^(.+?) made up only ([\d.]+)% of this week's training/i))){
+    return { muscle: m[1], status: 'Low share', badge: 'rt-badge-under',
+      detail: `Only ${m[2]}% of weekly volume` };
+  }
+  if((m = tip.match(/^(.+?) volume \((\d+) sets\) is above what most lifters recover well from/i))){
+    return { muscle: m[1], status: 'Over target', badge: 'rt-badge-over',
+      detail: `${m[2]} sets \u2014 consider trimming or extra rest` };
+  }
+  if((m = tip.match(/^(.+?) \((\d+) sets\) is noticeably behind (.+?) \((\d+) sets\) this week — about ([\d.]+)% less volume/i))){
+    return { muscle: m[1], status: 'Imbalance', badge: 'rt-badge-imbalance',
+      detail: `${m[2]} sets vs ${m[3]}'s ${m[4]} (\u2212${m[5]}%)` };
+  }
+  if((m = tip.match(/leans (push|pull)-dominant \(([\d.]+)% push vs ([\d.]+)% pull\)/i))){
+    return { muscle: 'Push / Pull', status: 'Imbalance', badge: 'rt-badge-imbalance',
+      detail: `${m[2]}% push vs ${m[3]}% pull` };
+  }
+
+  // Generic fallback — still shown, just without structured columns.
+  return { muscle: 'General', status: 'Note', badge: 'rt-badge-info', detail: tip };
+}
+
+function renderCoachTipsTable(container, tips){
+  if(!container) return;
+  if(!tips || tips.length === 0){
+    container.innerHTML = `<div class="report-empty">No flags right now — training looks balanced.</div>`;
+    return;
+  }
+  const rows = tips.map(parseCoachTip).map(row => `
+    <tr>
+      <td class="rt-muscle">${escapeHTML(row.muscle)}</td>
+      <td><span class="rt-badge ${row.badge}">${escapeHTML(row.status)}</span></td>
+      <td>${escapeHTML(row.detail)}</td>
+    </tr>
+  `).join('');
+  container.innerHTML = `
+    <table class="report-table">
+      <thead><tr><th>Muscle</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
 function renderCoach(){
@@ -2171,21 +2225,7 @@ function renderCoach(){
   renderCoachBodyGroups(bodyGroupsEl, buckets);
   if(detailedSummaryEl) detailedSummaryEl.textContent = report.coach.summary;
 
-  tipsEl.innerHTML = '';
-  if(report.coach.tips.length === 0){
-    const row = document.createElement('div');
-    row.className = 'plate-row';
-    row.innerHTML = `<div class="plate-date">No flags right now — training looks balanced.</div>`;
-    tipsEl.appendChild(row);
-  } else {
-    report.coach.tips.forEach(tip=>{
-      const row = document.createElement('div');
-      row.className = 'plate-row';
-      row.style.display = 'block';
-      row.textContent = '• ' + tip;
-      tipsEl.appendChild(row);
-    });
-  }
+  renderCoachTipsTable(tipsEl, report.coach.tips);
 
   renderWeeklyPlanChart(report.weeklyPlan);
 }
