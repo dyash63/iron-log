@@ -32,7 +32,7 @@
     --accent-dim:#5c2417;
     --good:#3ED598;
     --good-dim:#163b2c;
-    --radius:10px;
+    --radius:14px;
   }
   *{box-sizing:border-box;}
   body{
@@ -41,7 +41,7 @@
     color:var(--text);
     font-family:'Inter',sans-serif;
     -webkit-font-smoothing:antialiased;
-    padding-bottom:60px;
+    padding-bottom:92px;
   }
   ::selection{background:var(--accent);color:#111;}
   .wrap{max-width:720px;margin:0 auto;padding:22px 18px 0;}
@@ -84,14 +84,23 @@
   }
   .auth-btn.secondary{background:var(--surface);color:var(--text);border:1px solid var(--border);}
 
-  /* TABS */
-  .tabs{display:flex;gap:6px;margin-bottom:20px;background:var(--surface);padding:4px;border-radius:12px;border:1px solid var(--border);}
+  /* BOTTOM NAV */
+  .tabs{
+    position:fixed;left:50%;bottom:0;transform:translateX(-50%);
+    width:100%;max-width:720px;z-index:900;display:flex;gap:2px;
+    background:var(--surface);border-top:1px solid var(--border);
+    padding:6px 10px calc(6px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -6px 20px rgba(0,0,0,.3);
+  }
   .tab{
-    flex:1;text-align:center;padding:10px 6px;border-radius:9px;cursor:pointer;
-    font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.3px;
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    padding:7px 4px 6px;border-radius:11px;cursor:pointer;color:var(--muted);
     transition:all .15s ease;
   }
-  .tab.active{background:var(--accent);color:#161616;}
+  .tab-icon{font-size:19px;line-height:1;transition:transform .15s ease;}
+  .tab-label{font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;}
+  .tab.active{color:var(--accent);background:var(--surface-2);}
+  .tab.active .tab-icon{transform:translateY(-1px);}
 
   .view{display:none;}
   .view.active{display:block;animation:fade .25s ease;}
@@ -116,6 +125,7 @@
     border-radius:var(--radius);
     padding:16px 16px 18px;
     margin-bottom:14px;
+    box-shadow:0 1px 3px rgba(0,0,0,.18);
   }
   .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
   .card-title{
@@ -270,7 +280,7 @@
   .finish-btn:active{transform:scale(.98);}
 
   .toast{
-    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    position:fixed;left:50%;bottom:96px;transform:translate(-50%,20px);
     background:var(--good);color:#0f1a14;padding:12px 20px;border-radius:10px;
     font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:all .25s ease;
     z-index:1000;white-space:nowrap;
@@ -439,7 +449,7 @@
 
   /* SMART NOTIFICATIONS */
   .smart-tray{
-    position:fixed;left:50%;right:auto;bottom:76px;transform:translateX(-50%);
+    position:fixed;left:50%;right:auto;bottom:146px;transform:translateX(-50%);
     width:min(430px,calc(100vw - 28px));z-index:1600;display:flex;flex-direction:column;gap:10px;
     pointer-events:none;
   }
@@ -502,8 +512,34 @@
   @media (max-width:520px){
     .notify-stats{grid-template-columns:1fr 1fr 1fr;}
     .schedule-grid{grid-template-columns:1fr;}
-    .smart-tray{bottom:70px;}
+    .smart-tray{bottom:140px;}
   }
+
+  /* PROFILE SETTINGS GROUPS */
+  .settings-section{margin-bottom:14px;}
+  .settings-section > summary{
+    list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.18);
+  }
+  .settings-section > summary::-webkit-details-marker{display:none;}
+  .settings-section-icon{font-size:19px;flex-shrink:0;width:24px;text-align:center;}
+  .settings-section-text{flex:1;min-width:0;}
+  .settings-section-title{
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1px;
+    font-size:14px;color:var(--text);font-weight:600;
+  }
+  .settings-section-sub{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.4;}
+  .settings-section .chev{color:var(--muted);font-size:20px;font-weight:400;transition:transform .2s ease;flex-shrink:0;}
+  .settings-section[open] > summary{border-bottom-left-radius:0;border-bottom-right-radius:0;}
+  .settings-section[open] > summary .chev{transform:rotate(45deg);color:var(--accent);}
+  .settings-section-body{
+    border:1px solid var(--border);border-top:1px dashed var(--border);
+    border-bottom-left-radius:var(--radius);border-bottom-right-radius:var(--radius);
+    padding:14px 14px 2px;background:rgba(255,255,255,.012);margin-top:-1px;
+  }
+  .settings-section-body .card{margin-bottom:14px;box-shadow:none;}
+  .settings-section-body .card:last-child{margin-bottom:6px;}
 </style>
 </head>
 <body>
@@ -572,10 +608,10 @@
   </header>
 
   <div class="tabs">
-    <div class="tab active" data-view="today">Today</div>
-    <div class="tab" data-view="progress">Progress</div>
-    <div class="tab" data-view="history">History</div>
-    <div class="tab" data-view="profile">Profile</div>
+    <div class="tab active" data-view="today"><span class="tab-icon">🏠</span><span class="tab-label">Today</span></div>
+    <div class="tab" data-view="progress"><span class="tab-icon">📊</span><span class="tab-label">Progress</span></div>
+    <div class="tab" data-view="history"><span class="tab-icon">📜</span><span class="tab-label">History</span></div>
+    <div class="tab" data-view="profile"><span class="tab-icon">👤</span><span class="tab-label">Profile</span></div>
   </div>
 
   <!-- TODAY VIEW -->
@@ -585,7 +621,7 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Muscle Focus</div>
+        <div class="card-title">🎯 Muscle Focus</div>
         <div class="muted" id="focusHint"></div>
       </div>
       <div class="group-select" id="groupSelect"></div>
@@ -594,14 +630,14 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Warm-Up</div>
+        <div class="card-title">🔥 Warm-Up</div>
       </div>
       <div id="warmupList"></div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Working Sets</div>
+        <div class="card-title">💪 Working Sets</div>
         <div class="muted">15 / 12 / 10 / 8</div>
       </div>
       <div id="exerciseList"></div>
@@ -615,7 +651,7 @@
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Finisher</div>
+        <div class="card-title">⚡ Finisher</div>
         <div class="muted" id="finisherHint">Forearms</div>
       </div>
       <div class="group-select" id="finisherSelect"></div>
@@ -746,7 +782,7 @@
   <div class="view" id="view-history">
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Complete Workout History</div>
+        <div class="card-title">📜 Complete Workout History</div>
         <div class="muted" id="historyCount"></div>
       </div>
       <div id="historyList"></div>
@@ -755,135 +791,192 @@
 
   <!-- PROFILE VIEW -->
   <div class="view" id="view-profile">
-    <div class="auth-card" id="authCard">
-      <!-- Dynamic Auth Info rendered by JS -->
-    </div>
-
-    <div class="card">
-      <div class="card-head"><div class="card-title">Public Profile</div></div>
-      <div class="hint" style="margin-bottom:10px;">Shown on your shared workout images.</div>
-      <div class="hint hidden" id="identityLockedHint" style="margin-bottom:10px;color:#FF5C39;">🔒 Name, username, and country are locked and can't be changed.</div>
-      <input type="text" class="num" id="profNameInput" placeholder="Your name" style="width:100%;margin-bottom:10px;" maxlength="60">
-      <div class="weight-log-row" style="margin-bottom:4px;">
-        <input type="text" class="num" id="profUsernameInput" placeholder="Username (e.g. ironyash)" maxlength="20">
-        <select class="num" id="profCountryInput" style="max-width:150px;"></select>
-      </div>
-      <div class="hint" id="profUsernameStatus">3–20 characters: letters, numbers, underscore. Name, username, and country can only be set once.</div>
-      <button class="add-exercise-btn" id="profUsernameSaveBtn" style="width:100%;margin:10px 0;">Save (one-time)</button>
-      <input type="text" class="num" id="profGymInput" placeholder="Gym name (optional, always editable)" style="width:100%;" maxlength="60">
-    </div>
-
-    <div class="card">
-      <div class="card-head"><div class="card-title">Stats</div></div>
-      <div class="range-toggle" id="unitToggle">
-        <div class="chip" data-unit="kg">Kilograms (kg)</div>
-        <div class="chip" data-unit="lbs">Pounds (lbs)</div>
-      </div>
-      <div class="range-toggle" id="bodyFigureToggle">
-        <div class="chip" data-figure="male">Male</div>
-        <div class="chip" data-figure="female">Female</div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (<span id="weightUnitLabel">kg</span>)</div></div>
-        <div class="stat-box"><input type="number" class="stat-edit" id="profHeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Height (cm)</div></div>
-        <div class="stat-box"><div class="stat-num" id="profBMI">—</div><div class="stat-label">BMI</div></div>
-      </div>
-      <div class="hint" id="proteinHint">Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.</div>
-    </div>
-
-    <div class="card">
-      <div class="card-head"><div class="card-title">Bodyweight Log</div></div>
-      <div class="weight-log-row">
-        <input type="number" class="num" id="weightLogInput" inputmode="decimal" placeholder="Today's weight (kg)" data-placeholder-prefix="Today's weight">
-        <button class="add-exercise-btn" id="logWeightBtn" style="width:auto;padding:0 16px;">+ Log</button>
-      </div>
-      <div class="hint">Logging your weight here feeds the progression graph on the Progress tab.</div>
-    </div>
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">Smart Notifications</div>
-        <div class="muted" id="notifyStatus">Off</div>
-      </div>
-      <div class="smart-panel">
-        <div class="smart-row">
-          <div class="smart-main">
-            <div class="smart-label">Reminder Engine</div>
-            <div class="smart-sub" id="notifyEngineCopy">Hydration and workout nudges adapt to your logs.</div>
-          </div>
-          <button class="auth-btn" id="notifyToggleBtn" type="button">Enable</button>
-          <button class="auth-btn secondary" id="notifyResetBtn" type="button" style="margin-left:8px;">Reset Settings</button>
+    <details class="settings-section" open>
+      <summary>
+        <span class="settings-section-icon">👤</span>
+        <span class="settings-section-text">
+          <span class="settings-section-title">Account & Profile</span>
+          <span class="settings-section-sub">Sign-in and the info shown on your shared workout images.</span>
+        </span>
+        <span class="chev">+</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="auth-card" id="authCard">
+          <!-- Dynamic Auth Info rendered by JS -->
         </div>
 
-        <div>
-          <div class="smart-row">
-            <div class="smart-main">
-              <div class="smart-label">Water Hydration</div>
-              <div class="smart-sub" id="hydrationCopy">Target updates from your profile.</div>
+        <div class="card">
+          <div class="card-head"><div class="card-title">Public Profile</div></div>
+          <div class="hint" style="margin-bottom:10px;">Shown on your shared workout images.</div>
+          <div class="hint hidden" id="identityLockedHint" style="margin-bottom:10px;color:#FF5C39;">🔒 Name, username, and country are locked and can't be changed.</div>
+          <input type="text" class="num" id="profNameInput" placeholder="Your name" style="width:100%;margin-bottom:10px;" maxlength="60">
+          <div class="weight-log-row" style="margin-bottom:4px;">
+            <input type="text" class="num" id="profUsernameInput" placeholder="Username (e.g. ironyash)" maxlength="20">
+            <select class="num" id="profCountryInput" style="max-width:150px;"></select>
+          </div>
+          <div class="hint" id="profUsernameStatus">3–20 characters: letters, numbers, underscore. Name, username, and country can only be set once.</div>
+          <button class="add-exercise-btn" id="profUsernameSaveBtn" style="width:100%;margin:10px 0;">Save (one-time)</button>
+          <input type="text" class="num" id="profGymInput" placeholder="Gym name (optional, always editable)" style="width:100%;" maxlength="60">
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary>
+        <span class="settings-section-icon">⚖️</span>
+        <span class="settings-section-text">
+          <span class="settings-section-title">Body Stats & Weight</span>
+          <span class="settings-section-sub">Units, BMI, and your bodyweight log.</span>
+        </span>
+        <span class="chev">+</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="card">
+          <div class="card-head"><div class="card-title">Stats</div></div>
+          <div class="range-toggle" id="unitToggle">
+            <div class="chip" data-unit="kg">Kilograms (kg)</div>
+            <div class="chip" data-unit="lbs">Pounds (lbs)</div>
+          </div>
+          <div class="range-toggle" id="bodyFigureToggle">
+            <div class="chip" data-figure="male">Male</div>
+            <div class="chip" data-figure="female">Female</div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-box"><input type="number" class="stat-edit" id="profWeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Weight (<span id="weightUnitLabel">kg</span>)</div></div>
+            <div class="stat-box"><input type="number" class="stat-edit" id="profHeightInput" inputmode="decimal" placeholder="—"><div class="stat-label">Height (cm)</div></div>
+            <div class="stat-box"><div class="stat-num" id="profBMI">—</div><div class="stat-label">BMI</div></div>
+          </div>
+          <div class="hint" id="proteinHint">Aim for roughly 1.4–1.7g of protein per kg of bodyweight per day, spread across meals, from whichever protein sources fit your diet.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div class="card-title">Bodyweight Log</div></div>
+          <div class="weight-log-row">
+            <input type="number" class="num" id="weightLogInput" inputmode="decimal" placeholder="Today's weight (kg)" data-placeholder-prefix="Today's weight">
+            <button class="add-exercise-btn" id="logWeightBtn" style="width:auto;padding:0 16px;">+ Log</button>
+          </div>
+          <div class="hint">Logging your weight here feeds the progression graph on the Progress tab.</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="settings-section-icon">🔔</span>
+        <span class="settings-section-text">
+          <span class="settings-section-title">Smart Notifications</span>
+          <span class="settings-section-sub" id="notifyStatus">Off</span>
+        </span>
+        <span class="chev">+</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="card">
+          <div class="smart-panel">
+            <div class="smart-row">
+              <div class="smart-main">
+                <div class="smart-label">Reminder Engine</div>
+                <div class="smart-sub" id="notifyEngineCopy">Hydration and workout nudges adapt to your logs.</div>
+              </div>
+              <button class="auth-btn" id="notifyToggleBtn" type="button">Enable</button>
+              <button class="auth-btn secondary" id="notifyResetBtn" type="button" style="margin-left:8px;">Reset Settings</button>
             </div>
-            <button class="smart-switch" id="waterNotifyToggle" type="button" aria-label="Toggle water reminders"></button>
+
+            <div>
+              <div class="smart-row">
+                <div class="smart-main">
+                  <div class="smart-label">Water Hydration</div>
+                  <div class="smart-sub" id="hydrationCopy">Target updates from your profile.</div>
+                </div>
+                <button class="smart-switch" id="waterNotifyToggle" type="button" aria-label="Toggle water reminders"></button>
+              </div>
+              <div class="notify-stats" style="margin:10px 0;">
+                <div class="notify-stat"><div class="v" id="waterTargetVal">0</div><div class="l">Goal ml</div></div>
+                <div class="notify-stat"><div class="v" id="waterLoggedVal">0</div><div class="l">Logged ml</div></div>
+                <div class="notify-stat"><div class="v" id="waterRemainVal">0</div><div class="l">Left ml</div></div>
+              </div>
+              <div class="water-bar"><div class="water-fill" id="waterFill"></div></div>
+              <div class="notify-control-row" style="margin-top:10px;">
+                <select class="num" id="activityLevelSelect">
+                  <option value="light">Light activity</option>
+                  <option value="moderate">Moderate activity</option>
+                  <option value="high">High activity</option>
+                </select>
+                <button class="mini-btn good" id="water250Btn" type="button">+250 ml</button>
+                <button class="mini-btn good" id="water500Btn" type="button">+500 ml</button>
+                <button class="mini-btn" id="waterSnoozeBtn" type="button">30 min</button>
+                <button class="mini-btn danger" id="waterSkipBtn" type="button">Skip</button>
+              </div>
+              <div class="hint" id="hydrationNextHint">Next hydration reminder will appear here.</div>
+            </div>
+
+            <div>
+              <div class="smart-row">
+                <div class="smart-main">
+                  <div class="smart-label">Gym Attendance</div>
+                  <div class="smart-sub" id="workoutCopy">Reminders at 9 AM, 12 PM, 3 PM, 6 PM, 9 PM.</div>
+                </div>
+                <button class="smart-switch" id="workoutNotifyToggle" type="button" aria-label="Toggle workout reminders"></button>
+              </div>
+              <div class="notify-control-row" style="margin:10px 0;">
+                <button class="mini-btn good" id="attendanceYesBtn" type="button">✓ I went today</button>
+              </div>
+              <div class="hint" id="workoutNextHint">Next workout reminder will appear here.</div>
+            </div>
           </div>
-          <div class="notify-stats" style="margin:10px 0;">
-            <div class="notify-stat"><div class="v" id="waterTargetVal">0</div><div class="l">Goal ml</div></div>
-            <div class="notify-stat"><div class="v" id="waterLoggedVal">0</div><div class="l">Logged ml</div></div>
-            <div class="notify-stat"><div class="v" id="waterRemainVal">0</div><div class="l">Left ml</div></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="settings-section-icon">🗓️</span>
+        <span class="settings-section-text">
+          <span class="settings-section-title">Default Weekly Split</span>
+          <span class="settings-section-sub">Your starting day-by-day muscle focus suggestion.</span>
+        </span>
+        <span class="chev">+</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="card">
+          <div id="splitOverview"></div>
+          <div class="hint">This is only a starting suggestion — change any day's focus from the Today tab and it's remembered from then on.</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section">
+      <summary>
+        <span class="settings-section-icon">☁️</span>
+        <span class="settings-section-text">
+          <span class="settings-section-title">Data & Cloud Sync</span>
+          <span class="settings-section-sub">Backups, cleanup, and resetting your data.</span>
+        </span>
+        <span class="chev">+</span>
+      </summary>
+      <div class="settings-section-body">
+        <div class="card">
+          <div class="hint">Logs automatically sync with Google Firebase Cloud using your Google account. You can also export offline backups anytime.</div>
+          <div class="data-btn-row">
+            <button class="add-exercise-btn" id="exportBtn">⬇ Export backup</button>
+            <button class="add-exercise-btn" id="importBtn">⬆ Import backup</button>
           </div>
-          <div class="water-bar"><div class="water-fill" id="waterFill"></div></div>
-          <div class="notify-control-row" style="margin-top:10px;">
-            <select class="num" id="activityLevelSelect">
-              <option value="light">Light activity</option>
-              <option value="moderate">Moderate activity</option>
-              <option value="high">High activity</option>
+          <input type="file" id="importFile" accept="application/json" style="display:none">
+
+          <div class="hint" style="margin-top:16px;">Remove old workout logs to keep things tidy, without touching your profile or bodyweight history.</div>
+          <div class="weight-log-row">
+            <select class="num" id="purgeAgeSelect" style="flex:1;">
+              <option value="30">Older than 30 days</option>
+              <option value="90" selected>Older than 90 days</option>
+              <option value="180">Older than 180 days</option>
+              <option value="365">Older than 1 year</option>
             </select>
-            <button class="mini-btn good" id="water250Btn" type="button">+250 ml</button>
-            <button class="mini-btn good" id="water500Btn" type="button">+500 ml</button>
-            <button class="mini-btn" id="waterSnoozeBtn" type="button">30 min</button>
-            <button class="mini-btn danger" id="waterSkipBtn" type="button">Skip</button>
+            <button class="add-exercise-btn" id="purgeOldBtn" style="width:auto;padding:0 16px;">Delete Old Logs</button>
           </div>
-          <div class="hint" id="hydrationNextHint">Next hydration reminder will appear here.</div>
-        </div>
 
-        <div>
-          <div class="smart-row">
-            <div class="smart-main">
-              <div class="smart-label">Gym Attendance</div>
-              <div class="smart-sub" id="workoutCopy">Reminders at 9 AM, 12 PM, 3 PM, 6 PM, 9 PM.</div>
-            </div>
-            <button class="smart-switch" id="workoutNotifyToggle" type="button" aria-label="Toggle workout reminders"></button>
-          </div>
-          <div class="notify-control-row" style="margin:10px 0;">
-            <button class="mini-btn good" id="attendanceYesBtn" type="button">✓ I went today</button>
-          </div>
-          <div class="hint" id="workoutNextHint">Next workout reminder will appear here.</div>
+          <button class="add-exercise-btn" id="resetBtn" style="margin-top:14px;color:#ff6b6b;">Reset all logged data</button>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-head"><div class="card-title">Default Weekly Split</div></div>
-      <div id="splitOverview"></div>
-      <div class="hint">This is only a starting suggestion — change any day's focus from the Today tab and it's remembered from then on.</div>
-    </div>
-    <div class="card">
-      <div class="card-head"><div class="card-title">Data & Cloud Sync</div></div>
-      <div class="hint">Logs automatically sync with Google Firebase Cloud using your Google account. You can also export offline backups anytime.</div>
-      <div class="data-btn-row">
-        <button class="add-exercise-btn" id="exportBtn">⬇ Export backup</button>
-        <button class="add-exercise-btn" id="importBtn">⬆ Import backup</button>
-      </div>
-      <input type="file" id="importFile" accept="application/json" style="display:none">
-
-      <div class="hint" style="margin-top:16px;">Remove old workout logs to keep things tidy, without touching your profile or bodyweight history.</div>
-      <div class="weight-log-row">
-        <select class="num" id="purgeAgeSelect" style="flex:1;">
-          <option value="30">Older than 30 days</option>
-          <option value="90" selected>Older than 90 days</option>
-          <option value="180">Older than 180 days</option>
-          <option value="365">Older than 1 year</option>
-        </select>
-        <button class="add-exercise-btn" id="purgeOldBtn" style="width:auto;padding:0 16px;">Delete Old Logs</button>
-      </div>
-
-      <button class="add-exercise-btn" id="resetBtn" style="margin-top:14px;color:#ff6b6b;">Reset all logged data</button>
-    </div>
+    </details>
   </div>
 
   <footer>Track it. See it grow.<br>Designed by <b>Yash Desai</b> (@desaix) · Support: <a href="mailto:dyash63@gmail.com" style="color:var(--muted);">dyash63@gmail.com</a></footer>
