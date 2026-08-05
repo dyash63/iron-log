@@ -135,6 +135,76 @@
     return !!(s && s.minutes != null && s.minutes > 0);
   }
 
+  // ---------------------------------------------------------------------
+  // Warm-Up and Finisher contribution helpers.
+  //
+  // Warm-Up and Finisher are logged in their own sections of the app
+  // (entry.warmup / entry.finishers), separate from entry.exercises, and
+  // are NOT swept up by the exercises-only loops above. Historically that
+  // meant a day could be full of warm-up squats, treadmill cardio, and a
+  // full forearm finisher and still register as 0 sets / 0 cardio minutes
+  // toward every target. These helpers pull that data in properly:
+  //   - warm-up cardio (id "cardio", logged in minutes) counts toward the
+  //     weekly cardio-minutes target.
+  //   - the three bodyweight warm-up moves count as one working set each
+  //     toward their muscle group (there's no weight field to check, so
+  //     a completed/logged entry is treated as one set).
+  //   - Finisher sets count toward their muscle group's weekly sets. The
+  //     Finisher "cardio" bucket is the one exception: its items log sets
+  //     and weight like any other finisher, not minutes, so there's no
+  //     minutes figure to fold into the cardio target — it's left out of
+  //     both totals rather than guessed at.
+  const WARMUP_CARDIO_ID = 'cardio';
+  const WARMUP_GROUP_MAP = { pushup: 'chest', squat: 'legs', pullup: 'back' };
+
+  function warmupCardioMinutes(entry) {
+    const w = entry && entry.warmup && entry.warmup[WARMUP_CARDIO_ID];
+    return (w && w.done && w.value > 0) ? w.value : 0;
+  }
+
+  function warmupSetsByGroup(entry) {
+    const out = {};
+    if (entry && entry.warmup) {
+      Object.keys(WARMUP_GROUP_MAP).forEach(id => {
+        const w = entry.warmup[id];
+        if (w && w.done && w.value > 0) {
+          const group = WARMUP_GROUP_MAP[id];
+          out[group] = (out[group] || 0) + 1;
+        }
+      });
+    }
+    return out;
+  }
+
+  // Mirrors Iron Log's own normalizeFinisherLog() just enough to recover a
+  // set count from whatever shape is stored: the current { sets, weight }
+  // object, or a legacy `true` boolean from before per-set tracking existed
+  // (treated as one completed set, since we have no set count to read).
+  function finisherSetCount(value) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (typeof value.sets === 'number' && value.sets > 0) return value.sets;
+      if (value.weight != null) return 1;
+      return 0;
+    }
+    if (value === true) return 1;
+    return 0;
+  }
+
+  function finisherSetsByGroup(entry) {
+    const out = {};
+    if (entry && entry.finishers) {
+      Object.keys(entry.finishers).forEach(type => {
+        if (type === WARMUP_CARDIO_ID) return; // no minutes data to count — see note above
+        const bucket = entry.finishers[type];
+        if (!bucket) return;
+        let sets = 0;
+        Object.values(bucket).forEach(v => { sets += finisherSetCount(v); });
+        if (sets > 0) out[type] = (out[type] || 0) + sets;
+      });
+    }
+    return out;
+  }
+
   // Epley formula — simple, well-known estimated-1RM calculation.
   function estimateOneRepMax(weightKg, reps) {
     if (!weightKg || !reps) return 0;
@@ -177,24 +247,52 @@
       isolationSets: 0,
       setsInHypertrophyRange: 0 // reps between 6 and 15
     };
-    if (!entry || !entry.exercises) return result;
+    if (!entry) return result;
 
-    Object.values(entry.exercises).forEach(ex => {
-      const isCompound = COMPOUND_KEYWORDS.some(k => (ex.name || '').toLowerCase().includes(k));
-      (ex.sets || []).forEach(s => {
-        if (isCardioSet(s)) {
-          result.cardioMinutes += s.minutes;
+    if (entry.exercises) {
+      Object.values(entry.exercises).forEach(ex => {
+        const isCompound = COMPOUND_KEYWORDS.some(k => (ex.name || '').toLowerCase().includes(k));
+        (ex.sets || []).forEach(s => {
+          if (isCardioSet(s)) {
+            result.cardioMinutes += s.minutes;
+            result.groupsTrained.add(ex.group);
+            return;
+          }
+          if (!isStrengthSet(s)) return;
+          result.totalSets += 1;
+          result.totalVolume += s.weight * s.reps;
           result.groupsTrained.add(ex.group);
-          return;
-        }
-        if (!isStrengthSet(s)) return;
-        result.totalSets += 1;
-        result.totalVolume += s.weight * s.reps;
-        result.groupsTrained.add(ex.group);
-        if (isCompound) result.compoundSets += 1; else result.isolationSets += 1;
-        if (s.reps >= 6 && s.reps <= 15) result.setsInHypertrophyRange += 1;
+          if (isCompound) result.compoundSets += 1; else result.isolationSets += 1;
+          if (s.reps >= 6 && s.reps <= 15) result.setsInHypertrophyRange += 1;
+        });
       });
+    }
+
+    // Warm-up: cardio minutes plus one compound set per completed
+    // bodyweight move (squats/push-ups/pull-ups are all compound lifts,
+    // and their prescribed reps sit in the hypertrophy range, so they're
+    // credited the same way a compound exercises-card set would be).
+    result.cardioMinutes += warmupCardioMinutes(entry);
+    const warmupGroups = warmupSetsByGroup(entry);
+    Object.keys(warmupGroups).forEach(group => {
+      const sets = warmupGroups[group];
+      result.totalSets += sets;
+      result.compoundSets += sets;
+      result.setsInHypertrophyRange += sets;
+      result.groupsTrained.add(group);
     });
+
+    // Finisher: accessory/isolation work by nature (no reps field to
+    // check against the hypertrophy range, so it only contributes to
+    // set count, group variety, and isolation-set totals).
+    const finisherGroups = finisherSetsByGroup(entry);
+    Object.keys(finisherGroups).forEach(group => {
+      const sets = finisherGroups[group];
+      result.totalSets += sets;
+      result.isolationSets += sets;
+      result.groupsTrained.add(group);
+    });
+
     return result;
   }
 
@@ -214,14 +312,29 @@
 
     sortedKeysInRange(logs, from, to).forEach(key => {
       const entry = logs[key];
-      if (!entry || !entry.exercises) return;
-      Object.values(entry.exercises).forEach(ex => {
-        (ex.sets || []).forEach(s => {
-          if (isCardioSet(s)) { cardioMinutes += s.minutes; return; }
-          if (isStrengthSet(s) && setsByGroup.hasOwnProperty(ex.group)) {
-            setsByGroup[ex.group] += 1;
-          }
+      if (!entry) return;
+
+      if (entry.exercises) {
+        Object.values(entry.exercises).forEach(ex => {
+          (ex.sets || []).forEach(s => {
+            if (isCardioSet(s)) { cardioMinutes += s.minutes; return; }
+            if (isStrengthSet(s) && setsByGroup.hasOwnProperty(ex.group)) {
+              setsByGroup[ex.group] += 1;
+            }
+          });
         });
+      }
+
+      cardioMinutes += warmupCardioMinutes(entry);
+
+      const warmupGroups = warmupSetsByGroup(entry);
+      Object.keys(warmupGroups).forEach(group => {
+        if (setsByGroup.hasOwnProperty(group)) setsByGroup[group] += warmupGroups[group];
+      });
+
+      const finisherGroups = finisherSetsByGroup(entry);
+      Object.keys(finisherGroups).forEach(group => {
+        if (setsByGroup.hasOwnProperty(group)) setsByGroup[group] += finisherGroups[group];
       });
     });
 
@@ -315,12 +428,16 @@
     const lastTrained = {};
     sortedKeysInRange(logs, lookbackStart, asOf).forEach(key => {
       const entry = logs[key];
-      if (!entry || !entry.exercises) return;
+      if (!entry) return;
       const d = toLocalDate(key);
-      Object.values(entry.exercises).forEach(ex => {
-        const hasWork = (ex.sets || []).some(s => isStrengthSet(s) || isCardioSet(s));
-        if (hasWork) lastTrained[ex.group] = d; // sortedKeysInRange is chronological, so later overwrites earlier
-      });
+      if (entry.exercises) {
+        Object.values(entry.exercises).forEach(ex => {
+          const hasWork = (ex.sets || []).some(s => isStrengthSet(s) || isCardioSet(s));
+          if (hasWork) lastTrained[ex.group] = d; // sortedKeysInRange is chronological, so later overwrites earlier
+        });
+      }
+      Object.keys(warmupSetsByGroup(entry)).forEach(group => { lastTrained[group] = d; });
+      Object.keys(finisherSetsByGroup(entry)).forEach(group => { lastTrained[group] = d; });
     });
 
     Object.keys(MUSCLE_DB).forEach(group => {
