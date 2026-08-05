@@ -360,8 +360,12 @@
   .rt-badge-under{background:#1c3350;color:#7db8ff;}
   .rt-badge-over{background:#4a2318;color:#ff9776;}
   .rt-badge-imbalance{background:#4a3a14;color:#f7c463;}
+  .rt-badge-plateau{background:#341c4a;color:#c99bff;}
+  .rt-badge-consistency{background:#1c3d3a;color:#7fd9c9;}
   .rt-badge-info{background:#20232a;color:var(--muted);}
   .report-empty{color:var(--muted);font-size:11.5px;padding:6px 0;}
+  .report-legend-note{color:var(--muted);font-size:10.5px;line-height:1.5;padding:2px 0 10px;border-bottom:1px solid var(--border);margin-bottom:8px;}
+  .report-table td.rt-detail{color:var(--text);}
   @media (max-width:620px){
     .coach-body-layout{grid-template-columns:1fr;}
     .body-map-stage{min-height:220px;}
@@ -710,6 +714,7 @@
       <details class="coach-details">
         <summary>Detailed report</summary>
         <div id="coachDetailedSummary" class="hint coach-detail-summary"></div>
+        <div id="coachReportLegend" class="report-legend-note"></div>
         <div id="coachTips"></div>
       </details>
     </div>
@@ -2222,58 +2227,46 @@ function buildCoachCompactSummary(report, buckets){
   return `${sessions} session(s) logged in the last 7 days. ${todayLine} ${focusLine}`;
 }
 
-// Turns one plain-language coach tip string into structured {muscle, status,
-// badgeClass, detail} fields so it can render as a compact table row instead
-// of a wall of text. Falls back to a generic row for any phrasing it
-// doesn't recognize, so nothing is ever dropped.
-function parseCoachTip(tip){
-  let m;
+// Maps a recommendation's `category` (set by the engine) to the badge CSS
+// class used in the detailed report table. Kept as a lookup, rather than
+// re-deriving it from message text, so the UI stays in sync with whatever
+// categories the engine defines.
+const RT_BADGE_CLASS = {
+  'needs-work': 'rt-badge-under',
+  'overworked': 'rt-badge-over',
+  'imbalance': 'rt-badge-imbalance',
+  'plateau': 'rt-badge-plateau',
+  'consistency': 'rt-badge-consistency'
+};
 
-  if((m = tip.match(/^(.+?) is at (\d+) sets this week, below the (\d+)-(\d+) range\.\s*Add roughly (\d+) more working set/i))){
-    return { muscle: m[1], status: 'Under target', badge: 'rt-badge-under',
-      detail: `${m[2]} of ${m[3]}\u2013${m[4]} sets \u2014 add ~${m[5]} more` };
-  }
-  if((m = tip.match(/^Cardio sits at (\d+) min this week, under the general (\d+)-min\/week guideline/i))){
-    return { muscle: 'Cardio', status: 'Under target', badge: 'rt-badge-under',
-      detail: `${m[1]} of ${m[2]}+ min this week` };
-  }
-  if((m = tip.match(/^(.+?) made up only ([\d.]+)% of this week's training/i))){
-    return { muscle: m[1], status: 'Low share', badge: 'rt-badge-under',
-      detail: `Only ${m[2]}% of weekly volume` };
-  }
-  if((m = tip.match(/^(.+?) volume \((\d+) sets\) is above what most lifters recover well from/i))){
-    return { muscle: m[1], status: 'Over target', badge: 'rt-badge-over',
-      detail: `${m[2]} sets \u2014 consider trimming or extra rest` };
-  }
-  if((m = tip.match(/^(.+?) \((\d+) sets\) is noticeably behind (.+?) \((\d+) sets\) this week — about ([\d.]+)% less volume/i))){
-    return { muscle: m[1], status: 'Imbalance', badge: 'rt-badge-imbalance',
-      detail: `${m[2]} sets vs ${m[3]}'s ${m[4]} (\u2212${m[5]}%)` };
-  }
-  if((m = tip.match(/leans (push|pull)-dominant \(([\d.]+)% push vs ([\d.]+)% pull\)/i))){
-    return { muscle: 'Push / Pull', status: 'Imbalance', badge: 'rt-badge-imbalance',
-      detail: `${m[2]}% push vs ${m[3]}% pull` };
-  }
-
-  // Generic fallback — still shown, just without structured columns.
-  return { muscle: 'General', status: 'Note', badge: 'rt-badge-info', detail: tip };
+// Beginner-friendly fallback for any recommendation shape we don't
+// recognize (e.g. a future rec type without a `plain` field yet) — still
+// shown, just using the technical `message` instead of a simplified one.
+function coachRowFromRecommendation(rec){
+  return {
+    muscle: rec.muscle || 'General',
+    badgeLabel: rec.badgeLabel || 'Note',
+    badgeClass: RT_BADGE_CLASS[rec.category] || 'rt-badge-info',
+    detail: rec.plain || rec.message
+  };
 }
 
-function renderCoachTipsTable(container, tips){
+function renderCoachTipsTable(container, recommendations){
   if(!container) return;
-  if(!tips || tips.length === 0){
+  if(!recommendations || recommendations.length === 0){
     container.innerHTML = `<div class="report-empty">No flags right now — training looks balanced.</div>`;
     return;
   }
-  const rows = tips.map(parseCoachTip).map(row => `
+  const rows = recommendations.map(coachRowFromRecommendation).map(row => `
     <tr>
       <td class="rt-muscle">${escapeHTML(row.muscle)}</td>
-      <td><span class="rt-badge ${row.badge}">${escapeHTML(row.status)}</span></td>
-      <td>${escapeHTML(row.detail)}</td>
+      <td><span class="rt-badge ${row.badgeClass}">${escapeHTML(row.badgeLabel)}</span></td>
+      <td class="rt-detail">${escapeHTML(row.detail)}</td>
     </tr>
   `).join('');
   container.innerHTML = `
     <table class="report-table">
-      <thead><tr><th>Muscle</th><th>Status</th><th>Detail</th></tr></thead>
+      <thead><tr><th>Muscle</th><th>Flag</th><th>What it means</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   `;
@@ -2284,6 +2277,7 @@ function renderCoach(){
   const summaryEl = document.getElementById('coachSummary');
   const tipsEl = document.getElementById('coachTips');
   const detailedSummaryEl = document.getElementById('coachDetailedSummary');
+  const reportLegendEl = document.getElementById('coachReportLegend');
   const bodyMapEl = document.getElementById('coachBodyMap');
   const bodyGroupsEl = document.getElementById('coachBodyGroups');
   const bodyCopyEl = document.getElementById('coachBodyCopy');
@@ -2297,6 +2291,7 @@ function renderCoach(){
     if(bodyGroupsEl) bodyGroupsEl.innerHTML = '';
     if(bodyCopyEl) bodyCopyEl.textContent = '';
     if(detailedSummaryEl) detailedSummaryEl.textContent = '';
+    if(reportLegendEl) reportLegendEl.textContent = '';
     return;
   }
 
@@ -2317,8 +2312,9 @@ function renderCoach(){
   if(bodyMapEl) bodyMapEl.innerHTML = buildCoachBodySvg(figure, statusMap, report);
   renderCoachBodyGroups(bodyGroupsEl, buckets);
   if(detailedSummaryEl) detailedSummaryEl.textContent = report.coach.summary;
+  if(reportLegendEl) reportLegendEl.textContent = report.coach.legend || '';
 
-  renderCoachTipsTable(tipsEl, report.coach.tips);
+  renderCoachTipsTable(tipsEl, report.recommendations);
 
   renderWeeklyPlanChart(report.weeklyPlan);
 }
