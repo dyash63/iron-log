@@ -53,7 +53,7 @@
 (function (global) {
   'use strict';
 
-  const VERSION = '1.1.0';
+  const VERSION = '1.2.0';
 
   /* =====================================================================
    * 1. MUSCLE INTELLIGENCE DATABASE
@@ -135,76 +135,6 @@
     return !!(s && s.minutes != null && s.minutes > 0);
   }
 
-  // ---------------------------------------------------------------------
-  // Warm-Up and Finisher contribution helpers.
-  //
-  // Warm-Up and Finisher are logged in their own sections of the app
-  // (entry.warmup / entry.finishers), separate from entry.exercises, and
-  // are NOT swept up by the exercises-only loops above. Historically that
-  // meant a day could be full of warm-up squats, treadmill cardio, and a
-  // full forearm finisher and still register as 0 sets / 0 cardio minutes
-  // toward every target. These helpers pull that data in properly:
-  //   - warm-up cardio (id "cardio", logged in minutes) counts toward the
-  //     weekly cardio-minutes target.
-  //   - the three bodyweight warm-up moves count as one working set each
-  //     toward their muscle group (there's no weight field to check, so
-  //     a completed/logged entry is treated as one set).
-  //   - Finisher sets count toward their muscle group's weekly sets. The
-  //     Finisher "cardio" bucket is the one exception: its items log sets
-  //     and weight like any other finisher, not minutes, so there's no
-  //     minutes figure to fold into the cardio target — it's left out of
-  //     both totals rather than guessed at.
-  const WARMUP_CARDIO_ID = 'cardio';
-  const WARMUP_GROUP_MAP = { pushup: 'chest', squat: 'legs', pullup: 'back' };
-
-  function warmupCardioMinutes(entry) {
-    const w = entry && entry.warmup && entry.warmup[WARMUP_CARDIO_ID];
-    return (w && w.done && w.value > 0) ? w.value : 0;
-  }
-
-  function warmupSetsByGroup(entry) {
-    const out = {};
-    if (entry && entry.warmup) {
-      Object.keys(WARMUP_GROUP_MAP).forEach(id => {
-        const w = entry.warmup[id];
-        if (w && w.done && w.value > 0) {
-          const group = WARMUP_GROUP_MAP[id];
-          out[group] = (out[group] || 0) + 1;
-        }
-      });
-    }
-    return out;
-  }
-
-  // Mirrors Iron Log's own normalizeFinisherLog() just enough to recover a
-  // set count from whatever shape is stored: the current { sets, weight }
-  // object, or a legacy `true` boolean from before per-set tracking existed
-  // (treated as one completed set, since we have no set count to read).
-  function finisherSetCount(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      if (typeof value.sets === 'number' && value.sets > 0) return value.sets;
-      if (value.weight != null) return 1;
-      return 0;
-    }
-    if (value === true) return 1;
-    return 0;
-  }
-
-  function finisherSetsByGroup(entry) {
-    const out = {};
-    if (entry && entry.finishers) {
-      Object.keys(entry.finishers).forEach(type => {
-        if (type === WARMUP_CARDIO_ID) return; // no minutes data to count — see note above
-        const bucket = entry.finishers[type];
-        if (!bucket) return;
-        let sets = 0;
-        Object.values(bucket).forEach(v => { sets += finisherSetCount(v); });
-        if (sets > 0) out[type] = (out[type] || 0) + sets;
-      });
-    }
-    return out;
-  }
-
   // Epley formula — simple, well-known estimated-1RM calculation.
   function estimateOneRepMax(weightKg, reps) {
     if (!weightKg || !reps) return 0;
@@ -247,52 +177,24 @@
       isolationSets: 0,
       setsInHypertrophyRange: 0 // reps between 6 and 15
     };
-    if (!entry) return result;
+    if (!entry || !entry.exercises) return result;
 
-    if (entry.exercises) {
-      Object.values(entry.exercises).forEach(ex => {
-        const isCompound = COMPOUND_KEYWORDS.some(k => (ex.name || '').toLowerCase().includes(k));
-        (ex.sets || []).forEach(s => {
-          if (isCardioSet(s)) {
-            result.cardioMinutes += s.minutes;
-            result.groupsTrained.add(ex.group);
-            return;
-          }
-          if (!isStrengthSet(s)) return;
-          result.totalSets += 1;
-          result.totalVolume += s.weight * s.reps;
+    Object.values(entry.exercises).forEach(ex => {
+      const isCompound = COMPOUND_KEYWORDS.some(k => (ex.name || '').toLowerCase().includes(k));
+      (ex.sets || []).forEach(s => {
+        if (isCardioSet(s)) {
+          result.cardioMinutes += s.minutes;
           result.groupsTrained.add(ex.group);
-          if (isCompound) result.compoundSets += 1; else result.isolationSets += 1;
-          if (s.reps >= 6 && s.reps <= 15) result.setsInHypertrophyRange += 1;
-        });
+          return;
+        }
+        if (!isStrengthSet(s)) return;
+        result.totalSets += 1;
+        result.totalVolume += s.weight * s.reps;
+        result.groupsTrained.add(ex.group);
+        if (isCompound) result.compoundSets += 1; else result.isolationSets += 1;
+        if (s.reps >= 6 && s.reps <= 15) result.setsInHypertrophyRange += 1;
       });
-    }
-
-    // Warm-up: cardio minutes plus one compound set per completed
-    // bodyweight move (squats/push-ups/pull-ups are all compound lifts,
-    // and their prescribed reps sit in the hypertrophy range, so they're
-    // credited the same way a compound exercises-card set would be).
-    result.cardioMinutes += warmupCardioMinutes(entry);
-    const warmupGroups = warmupSetsByGroup(entry);
-    Object.keys(warmupGroups).forEach(group => {
-      const sets = warmupGroups[group];
-      result.totalSets += sets;
-      result.compoundSets += sets;
-      result.setsInHypertrophyRange += sets;
-      result.groupsTrained.add(group);
     });
-
-    // Finisher: accessory/isolation work by nature (no reps field to
-    // check against the hypertrophy range, so it only contributes to
-    // set count, group variety, and isolation-set totals).
-    const finisherGroups = finisherSetsByGroup(entry);
-    Object.keys(finisherGroups).forEach(group => {
-      const sets = finisherGroups[group];
-      result.totalSets += sets;
-      result.isolationSets += sets;
-      result.groupsTrained.add(group);
-    });
-
     return result;
   }
 
@@ -312,29 +214,14 @@
 
     sortedKeysInRange(logs, from, to).forEach(key => {
       const entry = logs[key];
-      if (!entry) return;
-
-      if (entry.exercises) {
-        Object.values(entry.exercises).forEach(ex => {
-          (ex.sets || []).forEach(s => {
-            if (isCardioSet(s)) { cardioMinutes += s.minutes; return; }
-            if (isStrengthSet(s) && setsByGroup.hasOwnProperty(ex.group)) {
-              setsByGroup[ex.group] += 1;
-            }
-          });
+      if (!entry || !entry.exercises) return;
+      Object.values(entry.exercises).forEach(ex => {
+        (ex.sets || []).forEach(s => {
+          if (isCardioSet(s)) { cardioMinutes += s.minutes; return; }
+          if (isStrengthSet(s) && setsByGroup.hasOwnProperty(ex.group)) {
+            setsByGroup[ex.group] += 1;
+          }
         });
-      }
-
-      cardioMinutes += warmupCardioMinutes(entry);
-
-      const warmupGroups = warmupSetsByGroup(entry);
-      Object.keys(warmupGroups).forEach(group => {
-        if (setsByGroup.hasOwnProperty(group)) setsByGroup[group] += warmupGroups[group];
-      });
-
-      const finisherGroups = finisherSetsByGroup(entry);
-      Object.keys(finisherGroups).forEach(group => {
-        if (setsByGroup.hasOwnProperty(group)) setsByGroup[group] += finisherGroups[group];
       });
     });
 
@@ -428,16 +315,12 @@
     const lastTrained = {};
     sortedKeysInRange(logs, lookbackStart, asOf).forEach(key => {
       const entry = logs[key];
-      if (!entry) return;
+      if (!entry || !entry.exercises) return;
       const d = toLocalDate(key);
-      if (entry.exercises) {
-        Object.values(entry.exercises).forEach(ex => {
-          const hasWork = (ex.sets || []).some(s => isStrengthSet(s) || isCardioSet(s));
-          if (hasWork) lastTrained[ex.group] = d; // sortedKeysInRange is chronological, so later overwrites earlier
-        });
-      }
-      Object.keys(warmupSetsByGroup(entry)).forEach(group => { lastTrained[group] = d; });
-      Object.keys(finisherSetsByGroup(entry)).forEach(group => { lastTrained[group] = d; });
+      Object.values(entry.exercises).forEach(ex => {
+        const hasWork = (ex.sets || []).some(s => isStrengthSet(s) || isCardioSet(s));
+        if (hasWork) lastTrained[ex.group] = d; // sortedKeysInRange is chronological, so later overwrites earlier
+      });
     });
 
     Object.keys(MUSCLE_DB).forEach(group => {
@@ -605,18 +488,34 @@
       const db = MUSCLE_DB[group];
       if (info.status === 'undertrained' || info.status === 'below-optimal') {
         const target = db.optimalMin - info.weeklySets;
+        const addSets = Math.max(1, target);
         push({
           id: `volume-low-${group}`,
+          type: 'low-volume',
+          category: 'needs-work',
+          badgeLabel: 'Needs work',
           priority: db.priority === 'high' ? 'high' : 'medium',
           rule: 'IF weeklySets < optimalMin THEN recommend additional volume',
-          message: `${info.label} is at ${info.weeklySets} sets this week, below the ${db.optimalMin}-${db.optimalMax} range. Add roughly ${Math.max(1, target)} more working set(s) over your next few sessions.`
+          muscle: info.label,
+          weeklySets: info.weeklySets,
+          optimalMin: db.optimalMin,
+          optimalMax: db.optimalMax,
+          addSets,
+          message: `${info.label} is at ${info.weeklySets} sets this week, below the ${db.optimalMin}-${db.optimalMax} range. Add roughly ${addSets} more working set(s) over your next few sessions.`,
+          plain: `Only ${info.weeklySets} set(s) this week \u2014 aim for ${db.optimalMin}\u2013${db.optimalMax}. Add about ${addSets} more over your next few sessions.`
         });
       } else if (info.status === 'overtrained') {
         push({
           id: `volume-high-${group}`,
+          type: 'high-volume',
+          category: 'overworked',
+          badgeLabel: 'Overworked',
           priority: 'medium',
           rule: 'IF weeklySets > maxRecoverable THEN recommend deload for that muscle',
-          message: `${info.label} volume (${info.weeklySets} sets) is above what most lifters recover well from in a week. Consider trimming a set or two, or giving it an extra rest day.`
+          muscle: info.label,
+          weeklySets: info.weeklySets,
+          message: `${info.label} volume (${info.weeklySets} sets) is above what most lifters recover well from in a week. Consider trimming a set or two, or giving it an extra rest day.`,
+          plain: `${info.weeklySets} sets this week \u2014 that's more than most people recover well from. Consider trimming a set or two, or resting a bit extra.`
         });
       }
     });
@@ -626,15 +525,24 @@
     if (ppl.totalSets >= 10) {
       const diff = ppl.percent.push - ppl.percent.pull;
       if (diff > 15) {
-        push({ id: 'ppl-push-heavy', priority: 'medium', rule: 'IF push% - pull% > 15 THEN recommend more pulling volume',
-          message: `Your training this week leans push-dominant (${ppl.percent.push}% push vs ${ppl.percent.pull}% pull). Adding a row or pulldown variation would even things out and support shoulder health.` });
+        push({ id: 'ppl-push-heavy', type: 'push-dominant', category: 'imbalance', badgeLabel: 'Uneven',
+          priority: 'medium', rule: 'IF push% - pull% > 15 THEN recommend more pulling volume',
+          muscle: 'Push / Pull', pushPercent: ppl.percent.push, pullPercent: ppl.percent.pull,
+          message: `Your training this week leans push-dominant (${ppl.percent.push}% push vs ${ppl.percent.pull}% pull). Adding a row or pulldown variation would even things out and support shoulder health.`,
+          plain: `Leaning push-heavy (${ppl.percent.push}% push vs ${ppl.percent.pull}% pull). Add a row or pulldown move to even it out.` });
       } else if (diff < -15) {
-        push({ id: 'ppl-pull-heavy', priority: 'medium', rule: 'IF pull% - push% > 15 THEN recommend more pushing volume',
-          message: `Your training this week leans pull-dominant (${ppl.percent.pull}% pull vs ${ppl.percent.push}% push). A little extra pressing volume would balance things out.` });
+        push({ id: 'ppl-pull-heavy', type: 'pull-dominant', category: 'imbalance', badgeLabel: 'Uneven',
+          priority: 'medium', rule: 'IF pull% - push% > 15 THEN recommend more pushing volume',
+          muscle: 'Push / Pull', pushPercent: ppl.percent.push, pullPercent: ppl.percent.pull,
+          message: `Your training this week leans pull-dominant (${ppl.percent.pull}% pull vs ${ppl.percent.push}% push). A little extra pressing volume would balance things out.`,
+          plain: `Leaning pull-heavy (${ppl.percent.pull}% pull vs ${ppl.percent.push}% push). Add a little extra pressing work to balance it out.` });
       }
       if (ppl.percent.legs < 20) {
-        push({ id: 'ppl-legs-low', priority: 'high', rule: 'IF legs% < 20% of weekly sets THEN recommend a leg session',
-          message: `Legs made up only ${ppl.percent.legs}% of this week's training. A dedicated lower-body session would round things out nicely.` });
+        push({ id: 'ppl-legs-low', type: 'low-share', category: 'needs-work', badgeLabel: 'Low focus',
+          priority: 'high', rule: 'IF legs% < 20% of weekly sets THEN recommend a leg session',
+          muscle: 'Legs', percent: ppl.percent.legs,
+          message: `Legs made up only ${ppl.percent.legs}% of this week's training. A dedicated lower-body session would round things out nicely.`,
+          plain: `Legs only got ${ppl.percent.legs}% of your training this week. Try adding a dedicated leg day.` });
       }
     }
 
@@ -642,36 +550,61 @@
     bundle.muscleImbalances.forEach(imb => {
       push({
         id: `imbalance-${imb.pair.join('-')}`,
+        type: 'imbalance',
+        category: 'imbalance',
+        badgeLabel: 'Uneven',
         priority: 'medium',
         rule: 'IF one paired muscle is >= ratioTolerance behind its antagonist THEN recommend targeted work',
-        message: `${MUSCLE_DB[imb.lagging].label} (${imb.laggingSets} sets) is noticeably behind ${MUSCLE_DB[imb.leading].label} (${imb.leadingSets} sets) this week — about ${imb.deficitPercent}% less volume. A couple of extra ${MUSCLE_DB[imb.lagging].label.toLowerCase()} sets would help keep things balanced.`
+        muscle: MUSCLE_DB[imb.lagging].label,
+        comparedTo: MUSCLE_DB[imb.leading].label,
+        laggingSets: imb.laggingSets,
+        leadingSets: imb.leadingSets,
+        deficitPercent: imb.deficitPercent,
+        message: `${MUSCLE_DB[imb.lagging].label} (${imb.laggingSets} sets) is noticeably behind ${MUSCLE_DB[imb.leading].label} (${imb.leadingSets} sets) this week — about ${imb.deficitPercent}% less volume. A couple of extra ${MUSCLE_DB[imb.lagging].label.toLowerCase()} sets would help keep things balanced.`,
+        plain: `Getting ${imb.deficitPercent}% less work than ${MUSCLE_DB[imb.leading].label} (${imb.laggingSets} vs ${imb.leadingSets} sets). Add a couple more sets to catch up.`
       });
     });
 
     // R5 — cardio target
     if (bundle.volume.cardio && bundle.volume.cardio.status === 'below-target') {
-      push({ id: 'cardio-low', priority: 'low', rule: 'IF weeklyCardioMinutes < minWeeklyMinutes THEN suggest adding cardio',
-        message: `Cardio sits at ${bundle.volume.cardio.weeklyMinutes} min this week, under the general ${CARDIO_TARGET.minWeeklyMinutes}-min/week guideline. Even a couple of short sessions would help.` });
+      push({ id: 'cardio-low', type: 'cardio-low', category: 'needs-work', badgeLabel: 'Needs work',
+        priority: 'low', rule: 'IF weeklyCardioMinutes < minWeeklyMinutes THEN suggest adding cardio',
+        muscle: 'Cardio', minutes: bundle.volume.cardio.weeklyMinutes, targetMinutes: CARDIO_TARGET.minWeeklyMinutes,
+        message: `Cardio sits at ${bundle.volume.cardio.weeklyMinutes} min this week, under the general ${CARDIO_TARGET.minWeeklyMinutes}-min/week guideline. Even a couple of short sessions would help.`,
+        plain: `${bundle.volume.cardio.weeklyMinutes} min this week \u2014 aim for at least ${CARDIO_TARGET.minWeeklyMinutes} min. Even a couple of short sessions would help.` });
     }
 
     // R6 — plateaus
     bundle.plateaus.forEach(p => {
       push({
         id: `plateau-${p.exerciseId}`,
+        type: 'plateau',
+        category: 'plateau',
+        badgeLabel: 'Stalled',
         priority: 'medium',
         rule: `IF estimated-1RM improvement < 2% over last ${p.sessionsAnalyzed} sessions THEN flag plateau`,
-        message: `${p.name} hasn't moved much over your last ${p.sessionsAnalyzed} sessions (about ${p.estimatedImprovementPercent}% change in estimated 1RM). Try adding a small amount of weight or a rep, adding an extra set, or taking a lighter deload week before pushing again.`
+        muscle: p.name,
+        sessionsAnalyzed: p.sessionsAnalyzed,
+        improvementPercent: p.estimatedImprovementPercent,
+        message: `${p.name} hasn't moved much over your last ${p.sessionsAnalyzed} sessions (about ${p.estimatedImprovementPercent}% change in estimated 1RM). Try adding a small amount of weight or a rep, adding an extra set, or taking a lighter deload week before pushing again.`,
+        plain: `Hasn't improved much lately (about ${p.estimatedImprovementPercent}% over ${p.sessionsAnalyzed} sessions). Try a bit more weight or a rep, an extra set, or a lighter deload week.`
       });
     });
 
     // R7 — consistency (kept encouraging, never shaming)
     const c = bundle.consistency;
     if (c.currentStreak === 0 && c.weeklyFrequency === 0) {
-      push({ id: 'consistency-restart', priority: 'high', rule: 'IF currentStreak == 0 AND weeklyFrequency == 0 THEN nudge to restart gently',
-        message: `It's been a few days since your last logged session. Whenever you're ready, even a short workout will get the streak going again.` });
+      push({ id: 'consistency-restart', type: 'consistency-restart', category: 'consistency', badgeLabel: 'Reminder',
+        priority: 'high', rule: 'IF currentStreak == 0 AND weeklyFrequency == 0 THEN nudge to restart gently',
+        muscle: 'Consistency',
+        message: `It's been a few days since your last logged session. Whenever you're ready, even a short workout will get the streak going again.`,
+        plain: `It's been a few days since your last session. Even a short workout will get you going again.` });
     } else if (c.weeklyFrequency < c.daysPerWeekTarget) {
-      push({ id: 'consistency-below-target', priority: 'low', rule: 'IF weeklyFrequency < daysPerWeekTarget THEN note the gap',
-        message: `You've trained ${c.weeklyFrequency} of your ${c.daysPerWeekTarget}-day weekly target so far. One more session this week would get you there.` });
+      push({ id: 'consistency-below-target', type: 'consistency-below-target', category: 'consistency', badgeLabel: 'Reminder',
+        priority: 'low', rule: 'IF weeklyFrequency < daysPerWeekTarget THEN note the gap',
+        muscle: 'Consistency', weeklyFrequency: c.weeklyFrequency, daysPerWeekTarget: c.daysPerWeekTarget,
+        message: `You've trained ${c.weeklyFrequency} of your ${c.daysPerWeekTarget}-day weekly target so far. One more session this week would get you there.`,
+        plain: `You've trained ${c.weeklyFrequency} of ${c.daysPerWeekTarget} days this week. One more session gets you to your target.` });
     }
 
     const priorityRank = { high: 0, medium: 1, low: 2 };
@@ -1010,7 +943,8 @@
     }
 
     const tips = recommendations.map(r => r.message);
-    return { summary, tips };
+    const legend = `Each muscle has a weekly "target" \u2014 a set range shown by research to grow it well. Rows below show where you're short, over, or uneven, and what to do about it.`;
+    return { summary, tips, legend };
   }
 
   /* =====================================================================
