@@ -128,11 +128,11 @@
   }
 
   function isStrengthSet(s) {
-    return !!(s && s.weight != null && s.reps != null && s.weight > 0 && s.reps > 0);
+    return !!(s && !(s.planned && !s.done) && s.done !== false && s.weight != null && s.reps != null && s.weight > 0 && s.reps > 0);
   }
 
   function isCardioSet(s) {
-    return !!(s && s.minutes != null && s.minutes > 0);
+    return !!(s && !(s.planned && !s.done) && s.done !== false && s.minutes != null && s.minutes > 0);
   }
 
   // Epley formula — simple, well-known estimated-1RM calculation.
