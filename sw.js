@@ -1,17 +1,22 @@
-/* Iron Log Service Worker — offline-first caching for PWA */
-const CACHE_NAME = 'iron-log-v1.2.1';
+/* Iron Log service worker — scoped, offline-first caching. */
+'use strict';
+
+const CACHE_PREFIX = 'iron-log-';
+const CACHE_NAME = `${CACHE_PREFIX}v1.4.1`;
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './iron-intelligence-engine.js',
-  './apple-touch-icon.png',
-  './icon-180.png',
-  './icon-192.png',
-  './icon-512.png'
+  './exercise-knowledge-base.js',
+  './iron-log-platform.js',
+  './iron-log-advanced.js',
+  './icons/apple-touch-icon.png',
+  './icons/icon-180.png',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
 ];
 
-// Install: pre-cache core shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -20,61 +25,77 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    caches.keys()
+      .then((keys) => Promise.all(
         keys
-          .filter((k) => k !== CACHE_NAME)
-          .map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+          .filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch strategy:
-// - Navigation / HTML → network-first, fall back to cache
-// - Same-origin static assets → cache-first
-// - External (Firebase, fonts, CDNs) → network-only (or opaque)
+function isInAppScope(url) {
+  const scope = new URL(self.registration.scope);
+  return url.origin === scope.origin && url.pathname.startsWith(scope.pathname);
+}
+
+function isCacheableStaticRequest(request, url) {
+  if (request.method !== 'GET' || !isInAppScope(url)) return false;
+  if (request.headers.has('authorization')) return false;
+  // Do not cache arbitrary same-origin endpoints or user-generated/query URLs.
+  return request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'image' ||
+    request.destination === 'font' ||
+    /\.(?:js|css|png|jpe?g|svg|webp|ico|woff2?)$/i.test(url.pathname);
+}
+
 self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  const url = new URL(req.url);
+  const request = event.request;
+  if (request.method !== 'GET') return;
 
-  // Only handle GET
-  if (req.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (!isInAppScope(url)) return;
 
-  // Cross-origin: let the browser handle (Firebase, Google Fonts, etc.)
-  if (url.origin !== self.location.origin) {
-    return;
-  }
-
-  // HTML navigations: network first
-  if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match(req).then((r) => r || caches.match('./index.html')))
-    );
-    return;
-  }
-
-  // Static assets: cache first, then network
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req).then((res) => {
-        // Only cache successful same-origin responses
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(req, copy));
+  if (request.mode === 'navigate' ||
+      (request.headers.get('accept') || '').includes('text/html')) {
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request);
+        if (response && response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put('./index.html', response.clone());
         }
-        return res;
-      }).catch(() => cached);
-    })
-  );
+        return response;
+      } catch (error) {
+        return (await caches.match('./index.html')) ||
+          new Response('Iron Log is unavailable offline. Reconnect and try again.', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+      }
+    })());
+    return;
+  }
+
+  if (!isCacheableStaticRequest(request, url)) return;
+
+  event.respondWith((async () => {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    try {
+      const response = await fetch(request);
+      if (response && response.ok && response.type !== 'opaque') {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, response.clone());
+      }
+      return response;
+    } catch (error) {
+      return cached || new Response('', { status: 504, statusText: 'Offline' });
+    }
+  })());
 });
