@@ -1,0 +1,1 @@
+{"name":"iron-log-coach-api","private":true,"type":"module","scripts":{"start":"node coach-api.mjs"},"engines":{"node":">=20"},"dependencies":{"firebase-admin":"^13.0.0"}}
